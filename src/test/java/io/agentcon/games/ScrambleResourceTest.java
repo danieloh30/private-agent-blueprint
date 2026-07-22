@@ -46,22 +46,37 @@ class ScrambleResourceTest {
     }
 
     @Test
-    void mixedCaseGuessIsAccepted() {
+    void mixedCaseGuessIsRejected() {
+        // INTENTIONAL BUG: case-sensitive comparison means "QUARKUS" ≠ "quarkus"
+        // This is the guardrail gap — an AI assistant should fix it with equalsIgnoreCase
         given()
             .queryParam("word",  "quarkus")
             .queryParam("guess", "QUARKUS")
             .when().get("/scramble")
             .then()
             .statusCode(200)
-            .body(containsString("Correct"));
+            .body(containsString("Nope"));
     }
 
     @Test
-    void uppercaseWordInUrlIsNormalised() {
-        // Simulates ?word=KUBERNETES arriving in the URL (e.g. from browser autocapitalise)
+    void uppercaseWordInUrlShowsFormNotFeedback() {
+        // ?word=ENDPOINT (no &guess=) must show the guess form, not a "Nope" result
         given()
-            .queryParam("word",  "KUBERNETES")
-            .queryParam("guess", "kubernetes")
+            .queryParam("word", "ENDPOINT")
+            .when().get("/scramble")
+            .then()
+            .statusCode(200)
+            .body(containsString("Your answer"))
+            .body(not(containsString("Nope")))
+            .body(not(containsString("Correct")));
+    }
+
+    @Test
+    void exactLowercaseGuessIsAccepted() {
+        // Only exact lowercase match succeeds (demonstrating the case-sensitive gap)
+        given()
+            .queryParam("word",  "quarkus")
+            .queryParam("guess", "quarkus")
             .when().get("/scramble")
             .then()
             .statusCode(200)

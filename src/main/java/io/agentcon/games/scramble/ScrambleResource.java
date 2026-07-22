@@ -40,9 +40,11 @@ public class ScrambleResource {
             @QueryParam("word")  String word,
             @QueryParam("guess") String guess) {
 
-        // New round: pick a fresh word
-        if (word == null || word.isBlank()) {
-            String chosen = wordBank.pickWord();
+        // New round or direct URL visit with no guess yet — show the form
+        if (word == null || word.isBlank() || guess == null) {
+            String chosen = (word == null || word.isBlank())
+                    ? wordBank.pickWord()
+                    : word.toLowerCase();   // normalise URL-capitalised word for display
             return scramble.data(
                     "scrambled", wordBank.scramble(chosen),
                     "word",      chosen,
@@ -50,16 +52,14 @@ public class ScrambleResource {
                     "correct",   null);
         }
 
-        // Normalise to lowercase so URL-capitalised values (e.g. ?word=KUBERNETES)
-        // still match the word bank and the player's guess correctly.
-        String normalWord  = word.toLowerCase();
-        String normalGuess = (guess == null) ? "" : guess.toLowerCase().trim();
-
-        boolean correct = normalWord.equals(normalGuess);
+        // INTENTIONAL GUARDRAIL BUG: case-sensitive comparison.
+        // "Endpoint" ≠ "endpoint" — the player must match the exact stored case.
+        // An AI assistant should change this to word.equalsIgnoreCase(guess).
+        boolean correct = word.toLowerCase().equals(guess.trim());
         return scramble.data(
-                "scrambled", wordBank.scramble(normalWord),
-                "word",      normalWord,
-                "guess",     normalGuess,
+                "scrambled", wordBank.scramble(word.toLowerCase()),
+                "word",      word.toLowerCase(),
+                "guess",     guess,
                 "correct",   correct);
     }
 }
