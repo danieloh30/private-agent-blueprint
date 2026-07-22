@@ -6,6 +6,16 @@
   <title>🔤 Word Scramble</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    .cheat-callout {
+      background: #052e16; border: 2px solid #16a34a; border-radius: 10px;
+      padding: 0.85rem 1.1rem; margin-bottom: 1.2rem;
+      display: flex; gap: 0.75rem; align-items: flex-start; font-size: 0.85rem;
+    }
+    .cheat-callout .cc-icon { font-size: 1.3rem; flex-shrink: 0; }
+    .cheat-callout .cc-body { color: #86efac; line-height: 1.6; }
+    .cheat-callout strong  { color: #4ade80; }
+    .cheat-callout code    { background: #14532d; border-radius: 4px; padding: 0.1rem 0.35rem;
+                             font-size: 0.8rem; color: #bbf7d0; font-family: monospace; }
     .guardrail-banner {
       background: #2d1b00; border: 1px solid #f59e0b; border-radius: 10px;
       padding: 0.9rem 1.1rem; margin-bottom: 1.5rem;
@@ -89,6 +99,18 @@
 
     <div class="scrambled-word">{scrambled}</div>
     <p class="hint">💡 Hint: it's a word from the Quarkus / cloud-native world</p>
+
+    {#if wordExposed}
+    <div class="cheat-callout">
+      <div class="cc-icon">🟢</div>
+      <div class="cc-body">
+        <strong>Gap 1 active — you're cheating!</strong><br/>
+        Look at the browser address bar: <code>?word={word}</code> — the answer
+        is right there. This is the security gap. An AI assistant should move the
+        word to server-side session state so it never appears in the URL.
+      </div>
+    </div>
+    {/if}
 
     {#if correct == null}
       <form method="get" action="/scramble">

@@ -45,21 +45,23 @@ public class ScrambleResource {
             String chosen = (word == null || word.isBlank())
                     ? wordBank.pickWord()
                     : word.toLowerCase();   // normalise URL-capitalised word for display
-            return scramble.data(
-                    "scrambled", wordBank.scramble(chosen),
-                    "word",      chosen,
-                    "guess",     null,
-                    "correct",   null);
+            // wordExposed=true when the word arrived via ?word= param (Gap 1 active)
+            boolean wordExposed = (word != null && !word.isBlank());
+            return scramble.data("scrambled",   wordBank.scramble(chosen))
+                           .data("word",        chosen)
+                           .data("guess",       null)
+                           .data("correct",     null)
+                           .data("wordExposed", wordExposed);
         }
 
         // INTENTIONAL GUARDRAIL BUG: case-sensitive comparison.
         // "Endpoint" ≠ "endpoint" — the player must match the exact stored case.
         // An AI assistant should change this to word.equalsIgnoreCase(guess).
         boolean correct = word.toLowerCase().equals(guess.trim());
-        return scramble.data(
-                "scrambled", wordBank.scramble(word.toLowerCase()),
-                "word",      word.toLowerCase(),
-                "guess",     guess,
-                "correct",   correct);
+        return scramble.data("scrambled",   wordBank.scramble(word.toLowerCase()))
+                       .data("word",        word.toLowerCase())
+                       .data("guess",       guess)
+                       .data("correct",     correct)
+                       .data("wordExposed", true);
     }
 }
