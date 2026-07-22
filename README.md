@@ -157,11 +157,19 @@ running tally on rps.html.
 
 #### 🔍 How to reproduce
 
-1. Go to `http://localhost:8080/scramble` — a scrambled word appears
-2. **Look at the browser address bar** — it shows `?word=serverless` (or whichever word was picked)
-3. You now know the answer before you typed anything — that's the gap
-4. You can also navigate directly to e.g. `http://localhost:8080/scramble?word=serverless`
-   — the page shows a green **"🟢 Gap 1 active — you're cheating!"** callout confirming the exploit
+**Quickest — URL manipulation:**
+
+Go directly to:
+```
+http://localhost:8080/scramble?word=serverless
+```
+→ The page shows a green **"🟢 Gap 1 active — you're cheating!"** callout, and the answer `serverless` is visible right in the address bar — you already know what to type before guessing.
+
+**Without crafting the URL — normal play:**
+
+1. Go to `http://localhost:8080/scramble`
+2. **Immediately look at the browser address bar** — it shows `?word=blueprint` (or whatever word was picked)
+3. You can read the answer from the URL before typing a single letter
 
 #### 💬 AI prompt to fix it
 
@@ -229,11 +237,27 @@ Typing `SERVERLESS`, `Serverless`, or `serverless` all return ✅ Correct.
 
 #### 🔍 How to reproduce
 
-1. Start the quiz at `http://localhost:8080/quiz` and answer question 1
-2. Open browser **DevTools → Network** and inspect the form submission
-3. You will see `score=0&answers=A&q=2` in the query string — the score travels in the URL
-4. Navigate directly to `http://localhost:8080/quiz?q=5&answer=A&score=4`
-   — you jump straight to the final screen with a score of 5/5 without answering anything
+**Quickest — URL manipulation (no DevTools needed):**
+
+Go directly to:
+```
+http://localhost:8080/quiz?q=5&answer=A&score=4&answers=AAAA
+```
+→ You land straight on the **🏆 Perfect score!** screen having answered zero questions.
+
+**Via DevTools — see the hidden fields in the response:**
+
+1. Go to `http://localhost:8080/quiz`, answer any question, click **Next question →**
+2. Open **DevTools → Network** tab (or press `F12`)
+3. Click the latest `quiz?q=...` request → **Response** tab
+4. Search (`Ctrl/⌘ F`) for `hidden` — you'll see:
+   ```html
+   <input type="hidden" name="score" value="1">
+   <input type="hidden" name="q"     value="2">
+   ```
+5. Switch to the **Elements** tab (top-left in DevTools), find that `<input name="score">`,
+   double-click its `value`, change it to `99`, and click **Next question →**
+   → the server accepts `score=99` as real and shows a perfect score
 
 #### 💬 AI prompt to fix it
 
