@@ -6,6 +6,16 @@
   <title>🔤 Word Scramble</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    .guardrail-banner {
+      background: #2d1b00; border: 1px solid #f59e0b; border-radius: 10px;
+      padding: 0.9rem 1.1rem; margin-bottom: 1.5rem;
+      display: flex; gap: 0.75rem; align-items: flex-start;
+    }
+    .guardrail-banner .gb-icon { font-size: 1.2rem; flex-shrink: 0; margin-top: 0.1rem; }
+    .guardrail-banner .gb-body { font-size: 0.85rem; line-height: 1.6; color: #fcd34d; }
+    .guardrail-banner .gb-title { font-weight: 700; color: #fbbf24; margin-bottom: 0.2rem; }
+    .guardrail-banner code { background: #3b2500; border-radius: 4px; padding: 0.1rem 0.35rem;
+                              font-size: 0.8rem; color: #fde68a; font-family: monospace; }
     body {
       font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
       background: #0f1117; color: #e2e8f0;
@@ -64,6 +74,18 @@
   <div class="container">
     <h1>🔤 Word Scramble</h1>
     <p class="subtitle">Unscramble the Quarkus / cloud-native term!</p>
+
+    <div class="guardrail-banner">
+      <div class="gb-icon">⚠️</div>
+      <div class="gb-body">
+        <div class="gb-title">Two guardrail gaps — intentional for AI demo</div>
+        <strong>1. Answer exposed in URL:</strong> the correct word is visible as
+        <code>?word=…</code> in the browser address bar — anyone can cheat.<br/>
+        <strong>2. Case-sensitive check:</strong> <code>Quarkus</code> ≠ <code>quarkus</code>,
+        so correct answers can be rejected.<br/>
+        Ask your AI assistant: <em>"Fix both guardrail gaps in ScrambleResource."</em>
+      </div>
+    </div>
 
     <div class="scrambled-word">{scrambled}</div>
     <p class="hint">💡 Hint: it's a word from the Quarkus / cloud-native world</p>

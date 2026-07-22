@@ -19,6 +19,21 @@ you can use an AI coding assistant (Bob, OpenCode, GitHub Copilot, etc.) to impr
 
 ---
 
+## ⚠️ Known Issues & Guardrail Gaps
+
+These are **intentional** bugs and security gaps seeded for AI coding assistant demos.
+Each game page shows a visible warning banner describing its specific issue.
+
+| Game | Type | Issue | File |
+|------|------|--------|------|
+| ✊ Rock Paper Scissors | 🐛 Bug | Invalid `?move=` value silently returns a loss instead of a `400` error | [`RpsResource.java`](src/main/java/io/agentcon/games/rps/RpsResource.java) |
+| 🔤 Word Scramble | 🔓 Security gap | Correct answer is exposed in the URL as `?word=…` — anyone can cheat | [`ScrambleResource.java`](src/main/java/io/agentcon/games/scramble/ScrambleResource.java) |
+| 🔤 Word Scramble | 🐛 Bug | Guess check is case-sensitive (`Quarkus` ≠ `quarkus`), so correct answers get rejected | [`ScrambleResource.java`](src/main/java/io/agentcon/games/scramble/ScrambleResource.java) |
+| 🔤 Word Scramble | 🐛 Bug | `scramble()` can loop forever on 2-letter words (no max-attempt guard) | [`WordBank.java`](src/main/java/io/agentcon/games/scramble/WordBank.java) |
+| 🧠 Trivia Quiz | 🔓 Security gap | Score and answers travel through hidden HTML fields — client can tamper via DevTools | [`QuizResource.java`](src/main/java/io/agentcon/games/quiz/QuizResource.java) |
+
+---
+
 ## Quick start
 
 ### Prerequisites
@@ -29,7 +44,6 @@ you can use an AI coding assistant (Bob, OpenCode, GitHub Copilot, etc.) to impr
 ### Run in dev mode (recommended)
 
 ```bash
-cd quarkus-games
 ./mvnw quarkus:dev
 ```
 
@@ -86,45 +100,107 @@ src/
 
 ## Improving with an AI coding assistant
 
-The code is intentionally seeded with **documented bugs, permission gaps, and improvement hooks**
-(look for `AI IMPROVEMENT IDEAS`, `KNOWN BUG`, `KNOWN ISSUE`, `PERMISSION GAP`, and
-`GUARDRAIL GAP` comments throughout the source).
+The code is intentionally seeded with **documented bugs, security gaps, and improvement hooks**.
+In-game warning banners tell you exactly what is wrong on each page.
+Below are copy-paste prompts you can give to any AI coding assistant (Bob, OpenCode, GitHub Copilot…)
+to fix or improve each issue.
 
-### Common prompts to try
+---
 
-```
-Fix the input-validation bug in RpsResource — invalid moves currently silently
-return a loss instead of a 400 error.
-```
+### ✊ Rock Paper Scissors
 
-```
-The Word Scramble game exposes the answer in the URL query parameter `word`.
-Move the current word to server-side session state so players cannot cheat.
-```
+#### 🐛 Fix: invalid move silently returns a loss
 
 ```
-The scramble() method in WordBank can spin forever for 2-letter words.
-Add a max-attempt guard and return the original word if no scramble is found.
+In RpsResource.java the catch block for IllegalArgumentException just renders
+an "invalid" result page instead of rejecting the request properly.
+Add a @ServerExceptionMapper (or an explicit check before valueOf) that returns
+a 400 Bad Request with the message "Invalid move. Choose ROCK, PAPER or SCISSORS."
+and update the template to show a proper error banner.
+```
+
+#### ➕ Improve: win/loss streak counter
+
+```
+Add an @ApplicationScoped ScoreboardBean that tracks total wins, losses, and draws
+across all Rock Paper Scissors rounds in memory.
+Expose a GET /rps/stats endpoint that returns the counts as JSON,
+and show a small scoreboard on the rps.html template.
+```
+
+---
+
+### 🔤 Word Scramble
+
+#### 🔓 Fix: answer exposed in URL
+
+```
+ScrambleResource passes the correct word as a plain ?word= query parameter,
+so anyone can read the answer in the browser address bar.
+Move the current word into an @SessionScoped bean (add quarkus-undertow-websockets
+or use a signed cookie via a HMAC helper) so the answer never leaves the server.
+Remove the hidden <input name="word"> from scramble.html.
+```
+
+#### 🐛 Fix: case-sensitive guess check
+
+```
+In ScrambleResource.java the line `word.equals(guess)` is case-sensitive,
+so a player typing "Quarkus" instead of "quarkus" is told they are wrong.
+Change it to word.equalsIgnoreCase(guess) and add a test in ScrambleResourceTest
+that submits a mixed-case guess and expects a "Correct" response.
+```
+
+#### 🐛 Fix: infinite loop on short words
+
+```
+The scramble() method in WordBank.java loops until the shuffled string differs
+from the original. For 2-letter words this can loop forever.
+Add a maxAttempts counter (e.g. 20) and return the original word unchanged
+if no distinct scramble is found within that limit.
+Add a unit test that calls scramble("ab") 100 times and asserts it always returns.
+```
+
+---
+
+### 🧠 Trivia Quiz
+
+#### 🔓 Fix: client-side score tampering
+
+```
+QuizResource passes `score` and `answers` as hidden HTML form fields, which
+a player can edit in browser DevTools to inflate their score.
+Introduce an @SessionScoped QuizSession bean that stores the current question
+index, accumulated score, and submitted answers on the server side.
+Remove the hidden fields from quiz.html and read state from the session bean
+in QuizResource instead of from query parameters.
+```
+
+#### ➕ Improve: load questions from JSON
+
+```
+QuestionBank.java has a hardcoded List of questions.
+Replace it with a @ApplicationScoped bean that reads questions from
+src/main/resources/questions.json on startup using Jackson ObjectMapper.
+Add a sample questions.json file with the existing 5 questions so the app
+still works out of the box, and write a test that verifies all questions load.
+```
+
+---
+
+### 🌐 Cross-cutting improvements
+
+```
+Add @RolesAllowed("player") to all three game resources and wire up HTTP Basic
+authentication using the quarkus-elytron-security-properties-file extension.
+Create a src/main/resources/users.properties with a single test user.
+Update the README with login instructions.
 ```
 
 ```
-Guess checking in ScrambleResource is case-sensitive, so "Quarkus" ≠ "quarkus".
-Fix it to be case-insensitive.
-```
-
-```
-Add a leaderboard endpoint GET /leaderboard backed by a Panache entity that
-records wins, losses, and draws for Rock Paper Scissors.
-```
-
-```
-Add @RolesAllowed("player") to all game endpoints and wire up Basic Auth so
-only authenticated users can play.
-```
-
-```
-Load quiz questions from src/main/resources/questions.json instead of the
-hardcoded list in QuestionBank.java.
+Add a GET /leaderboard endpoint backed by a Panache entity (add quarkus-hibernate-orm-panache
+and quarkus-jdbc-h2 extensions) that persists RPS results with player name and outcome.
+Show the top 10 wins on the arcade home page.
 ```
 
 ---

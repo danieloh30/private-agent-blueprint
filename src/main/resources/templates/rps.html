@@ -6,6 +6,16 @@
   <title>✊ Rock Paper Scissors</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    .guardrail-banner {
+      background: #2d1b00; border: 1px solid #f59e0b; border-radius: 10px;
+      padding: 0.9rem 1.1rem; margin-bottom: 1.5rem;
+      display: flex; gap: 0.75rem; align-items: flex-start;
+    }
+    .guardrail-banner .gb-icon { font-size: 1.2rem; flex-shrink: 0; margin-top: 0.1rem; }
+    .guardrail-banner .gb-body { font-size: 0.85rem; line-height: 1.6; color: #fcd34d; }
+    .guardrail-banner .gb-title { font-weight: 700; color: #fbbf24; margin-bottom: 0.2rem; }
+    .guardrail-banner code { background: #3b2500; border-radius: 4px; padding: 0.1rem 0.35rem;
+                              font-size: 0.8rem; color: #fde68a; font-family: monospace; }
     body {
       font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
       background: #0f1117; color: #e2e8f0;
@@ -56,6 +66,16 @@
   <div class="container">
     <h1>✊ Rock Paper Scissors</h1>
     <p class="subtitle">Choose your move — the computer will pick too!</p>
+
+    <div class="guardrail-banner">
+      <div class="gb-icon">⚠️</div>
+      <div class="gb-body">
+        <div class="gb-title">Known Bug — intentional for AI demo</div>
+        Typing an invalid move (e.g. <code>?move=banana</code>) silently returns a loss
+        instead of an error. Ask your AI assistant: <em>"Add input validation to RpsResource
+        so invalid moves return a 400 Bad Request with a friendly message."</em>
+      </div>
+    </div>
 
     {#if result}
       <div class="result">
