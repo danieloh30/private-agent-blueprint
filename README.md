@@ -30,7 +30,7 @@ Each game page shows a visible warning banner describing its specific issue.
 | 🔤 Word Scramble | 🔓 Security gap | Correct answer is exposed in the URL as `?word=…` — anyone can cheat | [`ScrambleResource.java`](src/main/java/io/agentcon/games/scramble/ScrambleResource.java) |
 | 🔤 Word Scramble | 🐛 Bug | Guess check is case-sensitive (`Quarkus` ≠ `quarkus`), so correct answers get rejected | [`ScrambleResource.java`](src/main/java/io/agentcon/games/scramble/ScrambleResource.java) |
 | 🔤 Word Scramble | 🐛 Bug | `scramble()` can loop forever on 2-letter words (no max-attempt guard) | [`WordBank.java`](src/main/java/io/agentcon/games/scramble/WordBank.java) |
-| 🧠 Trivia Quiz | 🔓 Security gap | Score and answers travel through hidden HTML fields — client can tamper via DevTools | [`QuizResource.java`](src/main/java/io/agentcon/games/quiz/QuizResource.java) |
+| 🧠 Trivia Quiz | 🐛 Bug | `?answer=` param is not validated — any value (e.g. `CHEAT`) is silently accepted | [`QuizResource.java`](src/main/java/io/agentcon/games/quiz/QuizResource.java) |
 
 ---
 
@@ -231,59 +231,51 @@ Typing `SERVERLESS`, `Serverless`, or `serverless` all return ✅ Correct.
 
 ---
 
-### 🧠 Trivia Quiz — client-side score tampering
+### 🧠 Trivia Quiz — unvalidated answer input
 
 **File:** [`src/main/java/io/agentcon/games/quiz/QuizResource.java`](src/main/java/io/agentcon/games/quiz/QuizResource.java)
 
+> **Note:** The previous URL score-tampering gap (`?score=99`) has already been fixed —
+> score is now stored server-side. The remaining gap is unvalidated answer input.
+
 #### 🔍 How to reproduce
 
-**Quickest — URL manipulation (no DevTools needed):**
-
-Go directly to:
-```
-http://localhost:8080/quiz?q=5&answer=A&score=4&answers=AAAA
-```
-→ You land straight on the **🏆 Perfect score!** screen having answered zero questions.
-
-**Via DevTools — see the hidden fields in the response:**
-
-1. Go to `http://localhost:8080/quiz`, answer any question, click **Next question →**
-2. Open **DevTools → Network** tab (or press `F12`)
-3. Click the latest `quiz?q=...` request → **Response** tab
-4. Search (`Ctrl/⌘ F`) for `hidden` — you'll see:
-   ```html
-   <input type="hidden" name="score" value="1">
-   <input type="hidden" name="q"     value="2">
+1. Start the quiz at `http://localhost:8080/quiz`
+2. In the address bar, manually navigate to:
    ```
-5. Switch to the **Elements** tab (top-left in DevTools), find that `<input name="score">`,
-   double-click its `value`, change it to `99`, and click **Next question →**
-   → the server accepts `score=99` as real and shows a perfect score
+   http://localhost:8080/quiz?answer=CHEAT
+   ```
+3. The server accepts `CHEAT` as an answer, silently counts it as wrong, and moves to question 2
+   — no error, no feedback that the input was invalid
+
+**Via DevTools — see the answer param in plain text:**
+
+1. Answer any question normally and click **Next question →**
+2. Open **DevTools → Network** tab → click the `quiz?answer=A` request
+3. Click **Payload** tab — you'll see `answer: A` sent as a plain query param with no validation token
+4. Edit the URL in the address bar to `?answer=Z` and hit Enter — accepted silently
 
 #### 💬 AI prompt to fix it
 
 ```
 Open src/main/java/io/agentcon/games/quiz/QuizResource.java.
-The current question index, score, and answers are passed as query parameters
-(?q=, ?score=, ?answers=) and as hidden HTML form fields in quiz.html.
-A player can manipulate these in the URL or browser DevTools.
+The ?answer= query parameter is accepted without validation — any string
+(e.g. "CHEAT", "Z", "") is silently treated as a wrong answer instead of
+being rejected.
 
 Fix this by:
-1. Adding the quarkus-undertow extension for session support.
-2. Creating an @SessionScoped QuizSession bean:
-     int currentIndex = 0;
-     int score = 0;
-     List<String> answers = new ArrayList<>();
-     boolean finished = false;
-3. In QuizResource.play(), read and write state only from QuizSession — ignore
-   the ?q=, ?score=, and ?answers= query params entirely.
-4. Remove the hidden <input> fields for q, score, and answers from quiz.html.
-5. Add a GET /quiz/reset endpoint that clears the session (for "Play again").
-6. Update QuizResourceTest to use a @TestHTTPEndpoint session-aware approach.
+1. At the top of the play() method, before calling state.recordAnswer(),
+   check that answer matches one of "A", "B", "C", "D" (case-insensitive).
+2. If it doesn't, return a 400 Bad Request response with the message:
+   "Invalid answer '{}'. Must be one of A, B, C, D."
+3. Update QuizResourceTest: add a test that sends ?answer=CHEAT and
+   asserts statusCode(400) and the error message.
 ```
 
 #### ✅ After the fix
 
-Navigating directly to `?q=5&score=4` has no effect — the server ignores those params and uses the session score.
+Submitting `?answer=CHEAT` returns HTTP 400:
+> ⚠️ Invalid answer 'CHEAT'. Must be one of A, B, C, D.
 
 #### ➕ Bonus improvement prompt
 

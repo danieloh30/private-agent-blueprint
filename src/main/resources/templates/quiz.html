@@ -87,14 +87,13 @@
     <div class="guardrail-banner">
       <div class="gb-icon">⚠️</div>
       <details>
-        <summary>Guardrail gap — click to expand for AI demo</summary>
+        <summary>Known Bug — click to expand for AI demo</summary>
         <div class="gb-body">
-          Open browser DevTools → Network tab → click a <code>quiz?</code> request
-          → Response tab → search for <code>hidden</code>.<br/>
-          You will see <code>name="score"</code> in plain text — edit it in the
-          Elements tab to inflate your score.<br/>
-          Ask your AI assistant: <em>"Move quiz game state to server-side session storage
-          so the score cannot be tampered with by the client."</em>
+          The <code>?answer=</code> query parameter is not validated server-side — any
+          value is accepted. Try submitting <code>?answer=CHEAT</code> in the address bar.<br/>
+          The server silently treats it as a wrong answer instead of rejecting it.<br/>
+          Ask your AI assistant: <em>"Add server-side validation in QuizResource so only
+          A, B, C or D are accepted; return a 400 for any other value."</em>
         </div>
       </details>
     </div>
