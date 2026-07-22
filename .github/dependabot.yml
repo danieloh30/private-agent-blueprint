@@ -1,0 +1,47 @@
+version: 2
+updates:
+  # ── Maven / Quarkus platform BOM + all extensions ──────────────────────────
+  - package-ecosystem: "maven"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    # Group Quarkus platform bumps into a single PR
+    groups:
+      quarkus-platform:
+        patterns:
+          - "io.quarkus.platform:*"
+          - "io.quarkus:*"
+      quarkus-rest:
+        patterns:
+          - "io.quarkus:quarkus-rest*"
+      test-dependencies:
+        patterns:
+          - "io.quarkus:quarkus-junit*"
+          - "io.rest-assured:*"
+    labels:
+      - "dependencies"
+      - "quarkus"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    ignore:
+      # Never downgrade
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+
+  # ── GitHub Actions workflows (if any are added later) ──────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "06:00"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
