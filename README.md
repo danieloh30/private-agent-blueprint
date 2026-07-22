@@ -1,6 +1,8 @@
 # 🎮 Quarkus Game Arcade
 
-A mini web-game hub built with **[Quarkus](https://quarkus.io)** (REST + Qute templating).  
+![Quarkus Game Arcade](.github/assets/img/Quarkus%20Game%20Arcade.png)
+
+A mini web-game hub built with **[Quarkus](https://quarkus.io)** (REST + Qute templating).
 It ships three playable browser games and is intentionally seeded with **small bugs and gaps** so
 you can use an AI coding assistant (Bob, OpenCode, GitHub Copilot, etc.) to improve it as a live demo.
 
