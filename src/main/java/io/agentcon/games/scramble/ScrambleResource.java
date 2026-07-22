@@ -50,12 +50,16 @@ public class ScrambleResource {
                     "correct",   null);
         }
 
-        // Check guess — BUG: case-sensitive comparison ("Quarkus" ≠ "quarkus")
-        boolean correct = word.equals(guess);
+        // Normalise to lowercase so URL-capitalised values (e.g. ?word=KUBERNETES)
+        // still match the word bank and the player's guess correctly.
+        String normalWord  = word.toLowerCase();
+        String normalGuess = (guess == null) ? "" : guess.toLowerCase().trim();
+
+        boolean correct = normalWord.equals(normalGuess);
         return scramble.data(
-                "scrambled", wordBank.scramble(word),
-                "word",      word,
-                "guess",     guess,
+                "scrambled", wordBank.scramble(normalWord),
+                "word",      normalWord,
+                "guess",     normalGuess,
                 "correct",   correct);
     }
 }

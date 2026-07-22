@@ -44,4 +44,27 @@ class ScrambleResourceTest {
             .body(containsString("Nope"))
             .body(not(containsString("Correct!")));
     }
+
+    @Test
+    void mixedCaseGuessIsAccepted() {
+        given()
+            .queryParam("word",  "quarkus")
+            .queryParam("guess", "QUARKUS")
+            .when().get("/scramble")
+            .then()
+            .statusCode(200)
+            .body(containsString("Correct"));
+    }
+
+    @Test
+    void uppercaseWordInUrlIsNormalised() {
+        // Simulates ?word=KUBERNETES arriving in the URL (e.g. from browser autocapitalise)
+        given()
+            .queryParam("word",  "KUBERNETES")
+            .queryParam("guess", "kubernetes")
+            .when().get("/scramble")
+            .then()
+            .statusCode(200)
+            .body(containsString("Correct"));
+    }
 }
