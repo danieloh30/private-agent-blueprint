@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>🎮 Quarkus Game Arcade</title>
+  <style>
+    /* ── reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+
+    header { text-align: center; margin-bottom: 3rem; }
+    header h1 { font-size: 2.8rem; font-weight: 800; color: #f472b6; letter-spacing: -1px; }
+    header p  { color: #94a3b8; margin-top: 0.5rem; font-size: 1.05rem; }
+
+    .arcade { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; max-width: 880px; width: 100%; }
+
+    .card {
+      background: #1e2130;
+      border: 1px solid #2d3148;
+      border-radius: 14px;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      transition: border-color 0.2s;
+    }
+    .card:hover { border-color: #6366f1; }
+
+    .card-icon  { font-size: 3rem; }
+    .card h2    { font-size: 1.3rem; font-weight: 700; color: #e2e8f0; }
+    .card p     { color: #94a3b8; font-size: 0.9rem; line-height: 1.6; flex: 1; }
+    .card a     { display: inline-block; background: #6366f1; color: #fff; text-decoration: none;
+                  padding: 0.6rem 1.4rem; border-radius: 8px; font-weight: 600; font-size: 0.9rem;
+                  text-align: center; transition: background 0.2s; }
+    .card a:hover { background: #4f46e5; }
+
+    footer { margin-top: 4rem; font-size: 0.75rem; color: #475569; border-top: 1px solid #2d3148;
+             padding-top: 1rem; width: 100%; max-width: 880px; text-align: center; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🎮 Quarkus Game Arcade</h1>
+    <p>Three mini-games built with Quarkus + Qute — pick your challenge!</p>
+  </header>
+
+  <section class="arcade">
+    <div class="card">
+      <div class="card-icon">✊</div>
+      <h2>Rock Paper Scissors</h2>
+      <p>Challenge the computer to a classic game of Rock, Paper, Scissors.
+         Can you outsmart the machine?</p>
+      <a href="/rps">Play now →</a>
+    </div>
+
+    <div class="card">
+      <div class="card-icon">🔤</div>
+      <h2>Word Scramble</h2>
+      <p>A Quarkus / cloud-native term has been scrambled.
+         Unscramble it before the answer drives you nuts!</p>
+      <a href="/scramble">Play now →</a>
+    </div>
+
+    <div class="card">
+      <div class="card-icon">🧠</div>
+      <h2>Trivia Quiz</h2>
+      <p>Five trivia questions about Quarkus and cloud-native tech.
+         How well do you know your stack?</p>
+      <a href="/quiz">Play now →</a>
+    </div>
+  </section>
+
+  <footer>Made with ❤️ using <strong>Quarkus</strong> + Qute &nbsp;|&nbsp; Improve this app with an AI coding assistant</footer>
+</body>
+</html>

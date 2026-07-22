@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>✊ Rock Paper Scissors</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+      background: #0f1117; color: #e2e8f0;
+      min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+      padding: 2rem 1rem;
+    }
+    .container { max-width: 560px; width: 100%; }
+    h1 { font-size: 2rem; font-weight: 800; color: #f472b6; margin-bottom: 0.4rem; }
+    .subtitle { color: #94a3b8; margin-bottom: 2rem; font-size: 0.95rem; }
+
+    .choices { display: flex; gap: 1rem; justify-content: center; margin-bottom: 2rem; flex-wrap: wrap; }
+    .choice-btn {
+      background: #1e2130; border: 2px solid #2d3148; border-radius: 12px;
+      padding: 1.2rem 2rem; font-size: 2rem; cursor: pointer;
+      text-decoration: none; display: flex; flex-direction: column;
+      align-items: center; gap: 0.4rem; color: #e2e8f0;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .choice-btn span.label { font-size: 0.8rem; font-weight: 600; color: #94a3b8; }
+    .choice-btn:hover { border-color: #6366f1; background: #252840; }
+
+    /* result card */
+    .result {
+      background: #1e2130; border: 1px solid #2d3148; border-radius: 14px;
+      padding: 1.8rem; text-align: center; margin-bottom: 2rem;
+    }
+    .result .vs { font-size: 1.4rem; color: #94a3b8; margin: 0.8rem 0; }
+    .result .moves { display: flex; justify-content: center; gap: 2rem; font-size: 2.5rem; }
+    .result .move-label { font-size: 0.75rem; color: #94a3b8; margin-top: 0.3rem; }
+    .badge {
+      display: inline-block; padding: 0.4rem 1.2rem; border-radius: 999px;
+      font-weight: 700; font-size: 1rem; margin-top: 1rem;
+    }
+    .badge.win  { background: #14532d; color: #4ade80; }
+    .badge.draw { background: #1e3a5f; color: #60a5fa; }
+    .badge.loss { background: #450a0a; color: #f87171; }
+    .badge.invalid { background: #3b2b10; color: #fbbf24; }
+
+    .play-again { display: inline-block; background: #6366f1; color: #fff; text-decoration: none;
+                  padding: 0.6rem 1.4rem; border-radius: 8px; font-weight: 600; margin-top: 1rem; }
+    .play-again:hover { background: #4f46e5; }
+    .back { display: block; text-align: center; color: #94a3b8; text-decoration: none;
+            font-size: 0.85rem; margin-top: 1.5rem; }
+    .back:hover { color: #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>✊ Rock Paper Scissors</h1>
+    <p class="subtitle">Choose your move — the computer will pick too!</p>
+
+    {#if result}
+      <div class="result">
+        <div class="moves">
+          <div>
+            <div>{result.playerChoice}</div>
+            <div class="move-label">You</div>
+          </div>
+          <div style="align-self:center;font-size:1rem;color:#94a3b8">vs</div>
+          <div>
+            <div>{result.computerChoice}</div>
+            <div class="move-label">Computer</div>
+          </div>
+        </div>
+        {#if result.outcome == "win"}
+          <div class="badge win">🎉 You Win!</div>
+        {/if}
+        {#if result.outcome == "draw"}
+          <div class="badge draw">🤝 Draw!</div>
+        {/if}
+        {#if result.outcome == "loss"}
+          <div class="badge loss">💀 You Lost!</div>
+        {/if}
+        {#if result.outcome == "invalid"}
+          <div class="badge invalid">⚠️ Invalid move: "{result.playerChoice}" — try ROCK, PAPER or SCISSORS</div>
+        {/if}
+        <br/>
+        <a class="play-again" href="/rps">Play again</a>
+      </div>
+    {/if}
+
+    {#if result == null}
+      <div class="choices">
+        <a class="choice-btn" href="/rps?move=ROCK">✊<span class="label">ROCK</span></a>
+        <a class="choice-btn" href="/rps?move=PAPER">✋<span class="label">PAPER</span></a>
+        <a class="choice-btn" href="/rps?move=SCISSORS">✌️<span class="label">SCISSORS</span></a>
+      </div>
+    {/if}
+
+    <a class="back" href="/">← Back to Arcade</a>
+  </div>
+</body>
+</html>
