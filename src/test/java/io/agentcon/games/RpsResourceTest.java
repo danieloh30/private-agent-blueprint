@@ -41,12 +41,14 @@ class RpsResourceTest {
     }
 
     @Test
-    void invalidMoveShowsInvalidBadge() {
+    void invalidMoveSilentlyReturnsLoss() {
+        // KNOWN BUG: invalid move is silently treated as a loss — no error feedback.
+        // An AI assistant should fix this to return a 400 Bad Request.
         given()
             .queryParam("move", "banana")
             .when().get("/rps")
             .then()
             .statusCode(200)
-            .body(containsString("Invalid move"));
+            .body(containsString("You Lost"));
     }
 }

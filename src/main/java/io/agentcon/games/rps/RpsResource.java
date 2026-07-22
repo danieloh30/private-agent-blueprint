@@ -42,9 +42,15 @@ public class RpsResource {
         try {
             playerChoice = RpsChoice.valueOf(move.toUpperCase());
         } catch (IllegalArgumentException e) {
-            // BUG: returns a confusing "you lost" page for invalid input
-            // An AI assistant can improve this by returning a proper error message
-            return rps.data("result", new RpsResult(move, "?", "invalid"));
+            // KNOWN BUG (intentional for AI demo):
+            // Invalid input silently loses — the player gets no feedback that their
+            // move was unrecognised. An AI assistant should return a 400 error here.
+            playerChoice = null;
+        }
+
+        if (playerChoice == null) {
+            RpsChoice computer = RpsChoice.computerMove();
+            return rps.data("result", new RpsResult(move, computer.name(), "loss"));
         }
 
         RpsChoice computer = RpsChoice.computerMove();

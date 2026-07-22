@@ -52,7 +52,6 @@
     .badge.win  { background: #14532d; color: #4ade80; }
     .badge.draw { background: #1e3a5f; color: #60a5fa; }
     .badge.loss { background: #450a0a; color: #f87171; }
-    .badge.invalid { background: #3b2b10; color: #fbbf24; }
 
     .play-again { display: inline-block; background: #6366f1; color: #fff; text-decoration: none;
                   padding: 0.6rem 1.4rem; border-radius: 8px; font-weight: 600; margin-top: 1rem; }
@@ -98,9 +97,6 @@
         {/if}
         {#if result.outcome == "loss"}
           <div class="badge loss">💀 You Lost!</div>
-        {/if}
-        {#if result.outcome == "invalid"}
-          <div class="badge invalid">⚠️ Invalid move: "{result.playerChoice}" — try ROCK, PAPER or SCISSORS</div>
         {/if}
         <br/>
         <a class="play-again" href="/rps">Play again</a>
