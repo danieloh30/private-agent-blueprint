@@ -16,6 +16,13 @@
     .guardrail-banner .gb-title { font-weight: 700; color: #fbbf24; margin-bottom: 0.2rem; }
     .guardrail-banner code { background: #3b2500; border-radius: 4px; padding: 0.1rem 0.35rem;
                               font-size: 0.8rem; color: #fde68a; font-family: monospace; }
+    .guardrail-banner details summary {
+      cursor: pointer; font-weight: 700; color: #fbbf24; font-size: 0.85rem;
+      list-style: none; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .guardrail-banner details summary::before { content: "▶ "; font-size: 0.7rem; }
+    .guardrail-banner details[open] summary::before { content: "▼ "; font-size: 0.7rem; }
+    .guardrail-banner details .gb-body { margin-top: 0.6rem; }
     body {
       font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
       background: #0f1117; color: #e2e8f0;
@@ -79,13 +86,17 @@
 
     <div class="guardrail-banner">
       <div class="gb-icon">⚠️</div>
-      <div class="gb-body">
-        <div class="gb-title">Guardrail gap — intentional for AI demo</div>
-        The current score and answers are passed through hidden HTML form fields,
-        so a player can manipulate them in the browser DevTools.<br/>
-        Ask your AI assistant: <em>"Move quiz game state to server-side session storage
-        so the score cannot be tampered with by the client."</em>
-      </div>
+      <details>
+        <summary>Guardrail gap — click to expand for AI demo</summary>
+        <div class="gb-body">
+          Open browser DevTools → Network tab → click a <code>quiz?</code> request
+          → Response tab → search for <code>hidden</code>.<br/>
+          You will see <code>name="score"</code> in plain text — edit it in the
+          Elements tab to inflate your score.<br/>
+          Ask your AI assistant: <em>"Move quiz game state to server-side session storage
+          so the score cannot be tampered with by the client."</em>
+        </div>
+      </details>
     </div>
 
     {#if finished}
@@ -101,7 +112,7 @@
         {#if isPerfect == false && isGood == false}
           <div class="score-emoji">📚 Keep studying!</div>
         {/if}
-        <a class="play-again" href="/quiz">Play again</a>
+        <a class="play-again" href="/quiz/reset">Play again</a>
       </div>
     {/if}
 
@@ -112,9 +123,6 @@
       </div>
 
       <form method="get" action="/quiz">
-        <input type="hidden" name="q"       value="{nextQIndex}"/>
-        <input type="hidden" name="score"   value="{score}"/>
-        <input type="hidden" name="answers" value="{answers}"/>
 
         <div class="question-card">
           <div class="question-text">{question.text}</div>

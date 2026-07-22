@@ -16,6 +16,13 @@
     .guardrail-banner .gb-title { font-weight: 700; color: #fbbf24; margin-bottom: 0.2rem; }
     .guardrail-banner code { background: #3b2500; border-radius: 4px; padding: 0.1rem 0.35rem;
                               font-size: 0.8rem; color: #fde68a; font-family: monospace; }
+    .guardrail-banner details summary {
+      cursor: pointer; font-weight: 700; color: #fbbf24; font-size: 0.85rem;
+      list-style: none; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .guardrail-banner details summary::before { content: "▶ "; font-size: 0.7rem; }
+    .guardrail-banner details[open] summary::before { content: "▼ "; font-size: 0.7rem; }
+    .guardrail-banner details .gb-body { margin-top: 0.6rem; }
     body {
       font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
       background: #0f1117; color: #e2e8f0;
@@ -68,12 +75,14 @@
 
     <div class="guardrail-banner">
       <div class="gb-icon">⚠️</div>
-      <div class="gb-body">
-        <div class="gb-title">Known Bug — intentional for AI demo</div>
-        Typing an invalid move (e.g. <code>?move=banana</code>) silently returns a loss
-        instead of an error. Ask your AI assistant: <em>"Add input validation to RpsResource
-        so invalid moves return a 400 Bad Request with a friendly message."</em>
-      </div>
+      <details>
+        <summary>Known Bug — click to expand for AI demo</summary>
+        <div class="gb-body">
+          Typing an invalid move (e.g. <code>?move=banana</code>) silently returns a loss
+          instead of an error. Ask your AI assistant: <em>"Add input validation to RpsResource
+          so invalid moves return a 400 Bad Request with a friendly message."</em>
+        </div>
+      </details>
     </div>
 
     {#if result}

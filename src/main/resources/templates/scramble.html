@@ -26,6 +26,13 @@
     .guardrail-banner .gb-title { font-weight: 700; color: #fbbf24; margin-bottom: 0.2rem; }
     .guardrail-banner code { background: #3b2500; border-radius: 4px; padding: 0.1rem 0.35rem;
                               font-size: 0.8rem; color: #fde68a; font-family: monospace; }
+    .guardrail-banner details summary {
+      cursor: pointer; font-weight: 700; color: #fbbf24; font-size: 0.85rem;
+      list-style: none; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .guardrail-banner details summary::before { content: "▶ "; font-size: 0.7rem; }
+    .guardrail-banner details[open] summary::before { content: "▼ "; font-size: 0.7rem; }
+    .guardrail-banner details .gb-body { margin-top: 0.6rem; }
     body {
       font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
       background: #0f1117; color: #e2e8f0;
@@ -87,14 +94,16 @@
 
     <div class="guardrail-banner">
       <div class="gb-icon">⚠️</div>
-      <div class="gb-body">
-        <div class="gb-title">Two guardrail gaps — intentional for AI demo</div>
-        <strong>1. Answer exposed in URL:</strong> the correct word is visible as
-        <code>?word=…</code> in the browser address bar — anyone can cheat.<br/>
-        <strong>2. Case-sensitive check:</strong> <code>Quarkus</code> ≠ <code>quarkus</code>,
-        so correct answers can be rejected.<br/>
-        Ask your AI assistant: <em>"Fix both guardrail gaps in ScrambleResource."</em>
-      </div>
+      <details>
+        <summary>Two guardrail gaps — click to expand for AI demo</summary>
+        <div class="gb-body">
+          <strong>1. Answer exposed in URL:</strong> the correct word is visible as
+          <code>?word=…</code> in the browser address bar — anyone can cheat.<br/>
+          <strong>2. Case-sensitive check:</strong> <code>Quarkus</code> ≠ <code>quarkus</code>,
+          so correct answers can be rejected.<br/>
+          Ask your AI assistant: <em>"Fix both guardrail gaps in ScrambleResource."</em>
+        </div>
+      </details>
     </div>
 
     <div class="scrambled-word">{scrambled}</div>

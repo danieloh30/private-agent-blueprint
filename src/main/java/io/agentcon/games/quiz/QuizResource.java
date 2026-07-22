@@ -7,83 +7,96 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.MediaType;
-import java.util.List;
+import jakarta.ws.rs.core.NewCookie;
+import jakarta.ws.rs.core.Response;
 
 /**
  * REST resource for the Simple Quiz Game.
  *
- * GET /quiz                    → show question #0 (question index 0)
- * GET /quiz?q=1&answer=A       → submit answer for question 0, show question 1
- * GET /quiz?q=5&answer=C       → submit last answer, show final score
+ * GET /quiz          → show current question (server-side session via cookie)
+ * GET /quiz?answer=A → submit answer, advance to next question
+ * GET /quiz/reset    → start a fresh game
  *
- * GUARDRAIL GAP (intentional for AI demo):
- *   The `score` and `answers` parameters are passed back and forth through
- *   hidden HTML fields, so a crafty player can manipulate them.  An AI
- *   assistant should move game state to the server side.
+ * Score lives in QuizSession (server-side ConcurrentHashMap keyed by a UUID cookie).
+ * URL params ?score=, ?q=, ?answers= are completely ignored — URL manipulation
+ * of the score is no longer possible.
  *
  * AI IMPROVEMENT IDEAS:
- * - Validate that `answer` is one of A/B/C/D before comparing (missing check!).
- * - Store answers in a server-side session to prevent client-side cheating.
+ * - Validate that `answer` is one of A/B/C/D before comparing.
  * - Add a timer per question using a Quarkus scheduler.
  * - Randomise question order each game.
+ * - Expire stale sessions after a configurable TTL.
  */
 @Path("/quiz")
 public class QuizResource {
 
-    @Inject
-    Template quiz;
+    static final String COOKIE = "quiz-session";
 
-    private static final List<Question> QUESTIONS = QuestionBank.ALL;
-    private static final int TOTAL = QUESTIONS.size();
+    @Inject Template    quiz;
+    @Inject QuizSession store;
+
+    private static final int TOTAL = QuestionBank.ALL.size();
 
     @GET
     @Produces(MediaType.TEXT_HTML)
-    public TemplateInstance play(
-            @QueryParam("q")      Integer qIndex,
-            @QueryParam("answer") String  answer,
-            @QueryParam("score")  Integer score,
-            @QueryParam("answers") String  prevAnswers) {
+    public Response play(@jakarta.ws.rs.CookieParam(COOKIE) Cookie sessionCookie,
+                         @QueryParam("answer") String answer) {
 
-        int idx   = (qIndex  == null) ? 0 : qIndex;
-        int pts   = (score   == null) ? 0 : score;
-        String pa = (prevAnswers == null) ? "" : prevAnswers;
+        // Resolve or create session
+        String sid   = (sessionCookie != null) ? sessionCookie.getValue() : null;
+        boolean isNew = (sid == null || store.get(sid) == null);
+        if (isNew) sid = store.createSession();
+        QuizSession.State state = store.get(sid);
 
-        // Evaluate the submitted answer (only if we have a valid question index)
-        if (answer != null && !answer.isBlank() && idx > 0 && idx <= TOTAL) {
-            Question prev = QUESTIONS.get(idx - 1);
-            if (answer.equalsIgnoreCase(prev.answer())) {
-                pts++;
-            }
-            pa = pa + answer;
+        // Process submitted answer
+        if (answer != null && !answer.isBlank() && !state.finished) {
+            Question q       = QuestionBank.ALL.get(state.currentIndex);
+            boolean  correct = answer.equalsIgnoreCase(q.answer());
+            state.recordAnswer(answer, correct);
         }
 
-        boolean finished = (idx >= TOTAL);
+        TemplateInstance ti = buildTemplate(state);
+        NewCookie cookie    = new NewCookie.Builder(COOKIE).value(sid).path("/quiz").httpOnly(true).build();
+        return Response.ok(ti).cookie(isNew ? cookie : null).build();
+    }
 
-        if (finished) {
+    @GET
+    @Path("/reset")
+    @Produces(MediaType.TEXT_HTML)
+    public Response reset(@jakarta.ws.rs.CookieParam(COOKIE) Cookie sessionCookie) {
+        String sid = (sessionCookie != null) ? sessionCookie.getValue() : null;
+        store.remove(sid);
+        String newSid   = store.createSession();
+        NewCookie cookie = new NewCookie.Builder(COOKIE).value(newSid).path("/quiz").httpOnly(true).build();
+        return Response.ok(buildTemplate(store.get(newSid))).cookie(cookie).build();
+    }
+
+    private TemplateInstance buildTemplate(QuizSession.State state) {
+        if (state.finished) {
+            int pts = state.score;
             return quiz.data("finished",       true)
                        .data("score",          pts)
                        .data("total",          TOTAL)
                        .data("question",       null)
-                       .data("qIndex",         idx)
-                       .data("answers",        pa)
-                       .data("questionNum",    idx)         // display: already past last question
+                       .data("questionNum",    TOTAL)
                        .data("progressPct",    100)
                        .data("isLastQuestion", false)
                        .data("isPerfect",      pts == TOTAL)
                        .data("isGood",         pts >= 3 && pts < TOTAL);
         }
 
-        int nextIdx  = idx + 1;
-        int progPct  = (TOTAL == 0) ? 0 : (idx * 100 / TOTAL);
-        boolean last = (nextIdx >= TOTAL);
+        int     idx      = state.currentIndex;
+        int     pts      = state.score;
+        int     nextIdx  = idx + 1;
+        int     progPct  = (TOTAL == 0) ? 0 : (idx * 100 / TOTAL);
+        boolean last     = (nextIdx >= TOTAL);
         return quiz.data("finished",       false)
                    .data("score",          pts)
                    .data("total",          TOTAL)
-                   .data("question",       QUESTIONS.get(idx))
-                   .data("qIndex",         idx)
-                   .data("answers",        pa)
-                   .data("questionNum",    nextIdx)         // 1-based display
+                   .data("question",       QuestionBank.ALL.get(idx))
+                   .data("questionNum",    nextIdx)
                    .data("progressPct",    progPct)
                    .data("isLastQuestion", last)
                    .data("nextQIndex",     nextIdx)
