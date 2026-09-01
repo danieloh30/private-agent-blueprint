@@ -161,7 +161,10 @@ http://localhost:8080/scramble?word=serverless
 2. **Immediately look at the browser address bar** — it shows `?word=blueprint` (or whatever word was picked)
 3. You can read the answer from the URL before typing a single letter
 
-#### 💬 AI prompt to fix it
+#### 💬 Advanced AI prompt to fix it
+
+> This session-state redesign adds a capability and is not intended for the
+> 30–60 second live-demo path.
 
 ```
 Open src/main/java/io/agentcon/games/scramble/ScrambleResource.java.
@@ -200,19 +203,8 @@ The address bar shows only `/scramble` with no `?word=` — the answer is never 
 #### 💬 AI prompt to fix it
 
 ```
-Open src/main/java/io/agentcon/games/scramble/ScrambleResource.java.
-Line 61 reads:
-    boolean correct = word.toLowerCase().equals(guess.trim());
-
-This is case-sensitive: "SERVERLESS" is rejected even though it is the right word.
-
-Fix this by changing line 61 to:
-    boolean correct = word.equalsIgnoreCase(guess.trim());
-
-Then update ScrambleResourceTest:
-- Change mixedCaseGuessIsRejected() to mixedCaseGuessIsAccepted() and assert
-  the body contains "Correct" instead of "Nope".
-- Run the tests and confirm all 16 pass.
+Make guesses in ScrambleResource case-insensitive. Implement the fix and its
+test now without pausing for a plan.
 ```
 
 #### ✅ After the fix
@@ -248,18 +240,9 @@ Typing `SERVERLESS`, `Serverless`, or `serverless` all return ✅ Correct.
 #### 💬 AI prompt to fix it
 
 ```
-Open src/main/java/io/agentcon/games/quiz/QuizResource.java.
-The ?answer= query parameter is accepted without validation — any string
-(e.g. "CHEAT", "Z", "") is silently treated as a wrong answer instead of
-being rejected.
-
-Fix this by:
-1. At the top of the play() method, before calling state.recordAnswer(),
-   check that answer matches one of "A", "B", "C", "D" (case-insensitive).
-2. If it doesn't, return a 400 Bad Request response with the message:
-   "Invalid answer '{}'. Must be one of A, B, C, D."
-3. Update QuizResourceTest: add a test that sends ?answer=CHEAT and
-   asserts statusCode(400) and the error message.
+Add input validation to QuizResource so only answers A, B, C, or D are
+accepted and invalid answers return 400. Implement the fix and its test now
+without pausing for a plan.
 ```
 
 #### ✅ After the fix
