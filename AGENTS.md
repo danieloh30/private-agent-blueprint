@@ -1,3 +1,5 @@
+
+
 # AGENTS.md -- Quarkus Project Instructions
 
 This is a Quarkus application. Follow these rules when working on this project.
