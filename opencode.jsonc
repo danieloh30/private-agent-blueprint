@@ -20,7 +20,7 @@
   "agent": {
     "build": {
       "steps": 12,
-      "temperature": 0.1
+      "temperature": 0
     }
   }
 }

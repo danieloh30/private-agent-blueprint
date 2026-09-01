@@ -121,19 +121,9 @@ Each gap below includes:
 #### 💬 AI prompt to fix it
 
 ```
-Open src/main/java/io/agentcon/games/rps/RpsResource.java.
-When playerChoice is null (IllegalArgumentException from valueOf), the code
-currently picks a computer move and silently returns a loss — the player has
-no idea their input was invalid.
-
-Fix this by:
-1. Returning a 400 Bad Request response with the message
-   "Invalid move '{}'. Choose ROCK, PAPER or SCISSORS." (fill in the actual value).
-2. Using @ServerExceptionMapper or an explicit early-return with
-   RestResponse.status(400).
-3. Updating rps.html to show a user-friendly error banner for the 400 response.
-4. Updating RpsResourceTest so the existing invalidMoveSilentlyReturnsLoss test
-   now asserts statusCode(400) and the friendly message instead.
+Add input validation to RpsResource so invalid moves return a 400 Bad Request
+with a friendly message. Implement the fix and its test now without pausing
+for a plan.
 ```
 
 #### ✅ After the fix

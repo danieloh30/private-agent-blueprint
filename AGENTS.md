@@ -4,6 +4,25 @@
 
 This is a Quarkus application. Follow these rules when working on this project.
 
+## Fast Bug-Fix Workflow
+
+Use this workflow only when the user explicitly requests a bounded bug fix that
+uses the project's existing dependencies and names the affected resource or
+behavior. It does not apply to new features, capabilities, or dependencies.
+
+1. Treat the explicit fix request as approval to implement. Start immediately;
+   do not stop to present a plan or ask for extension selection.
+2. Read only the named source file and its directly related test first. Avoid
+   broad repository searches unless those files do not contain the behavior.
+3. Make the smallest viable change using existing APIs and update the targeted
+   test. If a new dependency is required, stop and follow the Extension-First
+   Rule below.
+4. Run only the directly related test with the Quarkus testing tool when it is
+   available. If it is unavailable, report that clearly instead of blocking the
+   code edit.
+5. Do not update documentation unless the user requests it. Finish with a short
+   summary after the edit and targeted test; do not pause between these steps.
+
 ## CRITICAL -- Extension-First Rule (NEVER skip this)
 
 **STOP before writing ANY code.** For every feature or capability the user requests:
