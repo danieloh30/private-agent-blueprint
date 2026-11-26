@@ -1,9 +1,12 @@
 # AGENTS.md -- Quarkus Project Instructions
 
 This repository is a multi-module Maven build: `guardrails` (plain Java), `mcp-server` (Quarkus 3.40.1.2,
-see README "Versions"), `agent` (Quarkus 4.0.1) and `arcade` (Quarkus 4.0.1, the coding-target fixture with
-intentional bugs; do not fix them in `arcade/` itself). Follow these rules when working on this project.
-Run a module's tests with `./mvnw -pl <module> test`; the whole build with `./mvnw verify`.
+see README "Versions"), `agent` (Quarkus 4.0.1) and `arcade` (Quarkus 4.0.1, a game arcade with
+intentional bugs). Follow these rules when working on this project.
+
+- Arcade bug fixes requested in a demo go in `arcade/` (for example `arcade/src/main/java/io/agentcon/games/quiz/QuizResource.java`
+  with its test in `arcade/src/test/java/io/agentcon/games/`). Presenters restore the bugs with `git checkout arcade/`.
+- Run a module's tests with `./mvnw -pl <module> test`; the whole build with `./mvnw verify`.
 
 ## Required Workflow
 
@@ -15,7 +18,7 @@ Run a module's tests with `./mvnw -pl <module> test`; the whole build with `./mv
    searches unless those files do not contain the behavior.
 3. Make the smallest viable change using existing APIs and update the targeted
    test. If a new dependency is required, use the new-feature workflow below.
-4. Run only the related test with `./mvnw -pl <module> test -Dtest=<TestClass>`.
+4. Run only the related test, e.g. `./mvnw -pl arcade test -Dtest=QuizResourceTest`.
 5. Do not update documentation unless explicitly requested.
 6. Finish with a concise summary.
 
@@ -40,7 +43,7 @@ Run a module's tests with `./mvnw -pl <module> test`; the whole build with `./mv
 
 ## Testing
 
-- Run a targeted test with `./mvnw test -Dtest=<TestClass>` for a bounded
+- Run a targeted test with `./mvnw -pl <module> test -Dtest=<TestClass>` for a bounded
   bug fix.
 - Run `./mvnw test` when a change spans multiple components or adds a feature.
 - After fixing a failure, rerun the affected test to verify the correction.

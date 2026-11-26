@@ -1,7 +1,8 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  // Same private gateway and model as the Java agent's enterprise profile (profiles/enterprise.env).
-  // The key is read from the environment; never put it in this file.
+  // Default: the same private gateway and model as the Java agent's enterprise profile (profiles/enterprise.env).
+  // Offline: pick "Ollama (local)" with /models, or start with: opencode -m ollama/qwen3:4b-instruct
+  // Keys are read from the environment; never put them in this file.
   "model": "enmaas/rits/deepseek-ai/DeepSeek-V4.1-Flash-1017",
   "provider": {
     "enmaas": {
@@ -18,6 +19,18 @@
         },
         "rits/zai-org/glm-5-3": {
           "name": "GLM 5.3 (enMaaS)"
+        }
+      }
+    },
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama (local)",
+      "options": {
+        "baseURL": "http://127.0.0.1:11434/v1"
+      },
+      "models": {
+        "qwen3:4b-instruct": {
+          "name": "Qwen3 4B Instruct (local)"
         }
       }
     },
