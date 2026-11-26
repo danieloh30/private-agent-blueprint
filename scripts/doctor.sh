@@ -47,7 +47,7 @@ else
   if [[ -n "$base" ]]; then
     host="$(python3 -c "import sys,urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).hostname)" "$base")"
     ok "endpoint host: $host"
-    models="$(curl -s -m 15 "${auth[@]}" "$base/models" || true)"
+    models="$(curl -s -m 15 ${auth[@]+"${auth[@]}"} "$base/models" || true)"
     ids="$(printf '%s' "$models" | python3 -c "import json,sys; print('\n'.join(m['id'] for m in json.load(sys.stdin).get('data', [])))" 2>/dev/null || true)"
     if [[ -z "$ids" ]]; then bad "cannot list models at $host (unreachable or unauthorized)"
     elif grep -qxF "$model" <<<"$ids"; then ok "model '$model' is available"
