@@ -5,25 +5,46 @@ A small, runnable blueprint for a Claude Code-style coding agent built with **Qu
 guardrails enforced in code: secrets protection, data-leakage detection, unsafe-command blocking and
 allow/ask/deny action control.
 
+[![ci](https://github.com/danieloh30/private-agent-blueprint/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/danieloh30/private-agent-blueprint/actions/workflows/ci.yml) [![Deploy docs to GitHub Pages](https://github.com/danieloh30/private-agent-blueprint/actions/workflows/pages.yml/badge.svg)](https://github.com/danieloh30/private-agent-blueprint/actions/workflows/pages.yml)
+
+**Tutorial:** <https://danieloh30.github.io/private-agent-blueprint/>: play the buggy arcade, fix a game with
+OpenCode, then fix the rest with the Java agent and compare the two.
+
 ## Architecture
 
 ```mermaid
+%%{init: {"look":"handDrawn","theme":"base","themeVariables":{"darkMode":false,"background":"#FFFCF5","primaryColor":"#D4E6F1","primaryBorderColor":"#2E6B8A","primaryTextColor":"#1F1F1F","secondaryColor":"#D8F0D8","secondaryTextColor":"#1F1F1F","tertiaryColor":"#E8DCC4","tertiaryTextColor":"#1F1F1F","textColor":"#1F1F1F","lineColor":"#4A4035","edgeLabelBackground":"#FFFCF5","clusterBkg":"#F5F5F0","clusterBorder":"#6B5B45","fontSize":"16px"},"flowchart":{"nodeSpacing":35,"rankSpacing":55,"padding":18,"curve":"basis"}}}%%
 flowchart LR
-  dev([Presenter / developer]) -->|browser :8090| agent
-  subgraph agent["agent (Quarkus 4.0.1 + LangChain4j 1.24)"]
-    ui[Presenter UI + API] --> loop[Agent loop<br/>limits, tool allowlist,<br/>leakage inspection]
-  end
-  loop -->|"OpenAI-compatible HTTPS<br/>pinned host, no redirects"| model[(Private model<br/>enMaaS gateway or<br/>loopback Ollama)]
-  loop -->|"MCP Streamable HTTP :8091/mcp<br/>bearer token"| mcp
-  ui -->|"/admin approvals, acceptance<br/>approver token"| mcp
-  subgraph mcp["mcp-server (Quarkus 3.40 + quarkus-mcp-server)"]
-    tools[7 tools] --> policy[Policy engine<br/>allow / ask / deny]
-    policy --> inspect[Output leakage guardrail]
-  end
-  tools -->|request-scoped| ws[(Disposable workspace<br/>.demo/runs/&lt;run&gt;/workspace)]
-  tools -->|named tasks only| sandbox[[Restricted container<br/>network=none, read-only,<br/>limits, no host creds]]
-  sandbox --> scratch[(scratch copy + acceptance tests)]
-  fixture[(arcade/ fixture)] -. copied per run .-> ws
+    DEV([Presenter / developer]) -->|browser :8090| UI
+    subgraph AGENT["agent (Quarkus 4.0.1 + LangChain4j 1.24)"]
+        UI[Presenter UI + API] --> LOOP[Agent loop<br/>limits, tool allowlist,<br/>leakage inspection]
+    end
+    LOOP -->|"OpenAI-compatible HTTPS<br/>pinned host, no redirects"| MODEL([Private model<br/>enMaaS gateway or<br/>loopback Ollama])
+    LOOP -->|"MCP Streamable HTTP :8091/mcp<br/>bearer token"| TOOLS
+    UI -->|"/admin approvals, acceptance<br/>approver token"| TOOLS
+    subgraph MCP["mcp-server (Quarkus 3.40 + quarkus-mcp-server)"]
+        TOOLS[7 tools] --> POLICY[Policy engine<br/>allow / ask / deny]
+        POLICY --> INSPECT[Output leakage guardrail]
+    end
+    TOOLS -->|request-scoped| WS[(Disposable workspace<br/>.demo/runs/run-…/workspace)]
+    TOOLS -->|named tasks only| SANDBOX[[Restricted container<br/>network=none, read-only,<br/>limits, no host creds]]
+    SANDBOX --> SCRATCH[(scratch copy +<br/>acceptance tests)]
+    FIXTURE[(arcade/<br/>your working tree)] -. copied per run .-> WS
+    WS -. promote-workspace.sh<br/>after approval .-> FIXTURE
+
+    style DEV fill:#D4E6F1,stroke:#2E6B8A,color:#1F1F1F,stroke-width:2px
+    style AGENT fill:#F5F5F0,stroke:#8B8070,color:#1F1F1F,stroke-width:2px
+    style MCP fill:#F5F5F0,stroke:#8B8070,color:#1F1F1F,stroke-width:2px
+    style UI fill:#D4E6F1,stroke:#2E6B8A,color:#1F1F1F,stroke-width:2px
+    style LOOP fill:#D4E6F1,stroke:#2E6B8A,color:#1F1F1F,stroke-width:2px
+    style MODEL fill:#D8F0D8,stroke:#3D7A3D,color:#1F1F1F,stroke-width:2px
+    style TOOLS fill:#D8F0D8,stroke:#3D7A3D,color:#1F1F1F,stroke-width:2px
+    style POLICY fill:#F8D7D0,stroke:#A34736,color:#1F1F1F,stroke-width:2px
+    style INSPECT fill:#F8D7D0,stroke:#A34736,color:#1F1F1F,stroke-width:2px
+    style WS fill:#E8E0F0,stroke:#6B5B8A,color:#1F1F1F,stroke-width:2px
+    style SANDBOX fill:#E8E0F0,stroke:#6B5B8A,color:#1F1F1F,stroke-width:2px
+    style SCRATCH fill:#E8E0F0,stroke:#6B5B8A,color:#1F1F1F,stroke-width:2px
+    style FIXTURE fill:#E8DCC4,stroke:#6B5B45,color:#1F1F1F,stroke-width:2px
 ```
 
 | Component | Directory | Role |
@@ -34,7 +55,7 @@ flowchart LR
 | Policy and output inspection | [`guardrails/`](guardrails) | Framework-free policy engine, path containment, leakage inspector, approval store. |
 | Isolated target workspace | [`arcade/`](arcade) → `.demo/runs/<run>/workspace` | Fixture copied per run; the agent can only change it through approved patches. |
 | Independent verification | [`acceptance/`](acceptance), `SandboxRunner` | Presenter-owned acceptance tests run in a restricted container. |
-| Demo setup | [`scripts/`](scripts), [`docs/`](docs) | Doctor, dependency preparation, start/stop, rehearsal, probes, evidence, reset. |
+| Demo setup | [`scripts/`](scripts), [`docs/`](docs) | Doctor, dependency preparation, start/stop, rehearsal, probes, evidence, promotion of approved changes, reset. |
 
 The agent cannot edit its own policies, credentials, acceptance checks or runtime: they live in other processes
 and directories that no tool can reach.
@@ -115,7 +136,14 @@ Details and remaining limitations: [docs/threat-model.md](docs/threat-model.md).
 
 ## Demo
 
-The 10–12 minute presenter path, with exact prompts and expected observations, is in
+Two acts on the same buggy arcade (`cd arcade && ../mvnw quarkus:dev`, then <http://localhost:8080>):
+
+1. **OpenCode** fixes a game in place with the private model; reload the page to see it.
+2. **The Java agent** fixes the others: it proposes diffs, you approve them in the console, acceptance tests pass in
+   the sandbox, and `scripts/promote-workspace.sh` copies the approved change into `arcade/` so the page reload shows it.
+
+Step by step: the [tutorial](docs/tutorials/index.md) (published at
+<https://danieloh30.github.io/private-agent-blueprint/>). Timed stage script with exact prompts:
 [docs/runbook.md](docs/runbook.md). Reset and troubleshooting: [docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## Endpoints
