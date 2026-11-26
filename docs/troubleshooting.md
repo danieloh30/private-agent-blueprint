@@ -6,9 +6,10 @@
 |-------|---------|---------|
 | New disposable workspace, same processes | UI **Fresh workspace**, or `curl -XPOST http://127.0.0.1:8090/api/reset` | creates `.demo/runs/<new-run>` |
 | Stop everything | `scripts/stop.sh` | the agent, MCP server and arcade processes; leftover `blueprint-verify-*` containers |
+| Restore the arcade bugs (after OpenCode or promotion) | `git checkout arcade/` | your `arcade/` directory only |
 | Clean demo state | `scripts/reset-demo.sh` | deletes `.demo/runs`, `.demo/logs`, `.demo/evidence`; keeps `.demo/m2` and tokens |
 
-None of these touch git, `arcade/`, `acceptance/` or any other file in your working tree. To regenerate the
+Apart from `git checkout arcade/`, none of these touch git, `arcade/`, `acceptance/` or any other file in your working tree. To regenerate the
 dependency cache, delete `.demo/m2` and run `scripts/prepare-deps.sh`.
 
 ## Symptoms

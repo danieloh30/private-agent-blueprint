@@ -1,4 +1,8 @@
-# Presenter runbook (10–12 minutes)
+# Presenter runbook (12–15 minutes)
+
+Two acts on the same arcade: OpenCode fixes the Quiz in place (Act 1), then the Java agent fixes Rock Paper
+Scissors under approval and sandboxed verification (Act 2). The step-by-step version with diagrams is the
+[tutorial](tutorials/index.md).
 
 Measured on the presenter laptop (Apple M4 Max, 64 GB, macOS 27.2, Podman 6.1.3 with a libkrun VM, 8 vCPU / 20 GB VM, Java 25)
 against enMaaS with `rits/deepseek-ai/DeepSeek-V4.1-Flash-1017`, 26 Nov 2026. Expect different numbers on other
@@ -10,7 +14,9 @@ networks, hardware and models; re-measure with `scripts/happy-path.sh` during re
 | Approve and apply one proposal | about 0.1 s |
 | Sandboxed acceptance (`acceptance-rps`, 9 tests) | 15.1 to 15.9 s |
 | Sandboxed unit tests (18 tests) | 15 to 18 s |
-| Local `qwen3:4b-instruct` primary task (Ollama, same laptop) | 8 to 11 s |
+| Local `qwen3:4b-instruct` primary task (Ollama, same laptop) | 8 to 18 s |
+| OpenCode on enMaaS, Quiz or RPS banner prompt, including its own test run | 32 to 34 s |
+| OpenCode on local `qwen3:4b-instruct`, Scramble prompt with explicit file paths | 28 s |
 
 ## T-30 minutes
 
@@ -29,20 +35,43 @@ scripts/start.sh enterprise
 ```
 
 ```bash
-scripts/arcade-baseline.sh
+git checkout arcade/
 ```
 
-Open three browser tabs: `http://localhost:8080/rps`, the presenter UI `http://127.0.0.1:8090`, and this runbook.
+In a terminal you keep open, start the arcade with live reload (the arcade must have all three bugs):
+
+```bash
+cd arcade && ../mvnw quarkus:dev
+```
+
+In a second terminal, from the repository root, have OpenCode ready (`opencode`; enMaaS is the default model).
+
+Open three browser tabs: `http://localhost:8080/`, the presenter UI `http://127.0.0.1:8090`, and this runbook.
 Set browser zoom to 125–150 %. If the network or gateway fails, see *Fallbacks* below.
 
 ## A. Baseline (1.5 min)
 
 1. Arcade tab: play one round, then open `http://localhost:8080/rps?move=banana`.
-   **Observe:** "💀 You Lost!" with HTTP 200. Invalid input is silently a loss.
-2. Presenter UI header. **Point at:** profile `ENTERPRISE`, endpoint `https://api.enmaas.devshift.net:443`,
+   **Observe:** "💀 You Lost!" with HTTP 200. Invalid input is silently a loss. Also show
+   `http://localhost:8080/quiz?answer=CHEAT` (accepted) and expand a game's amber banner (the suggested prompt).
+
+## Act 1. OpenCode fixes the Quiz (2.5 min)
+
+1. In OpenCode, paste the Quiz banner prompt:
+   > Add input validation to QuizResource so only answers A, B, C, or D are accepted and invalid answers return 400.
+   > Implement the fix and its test now without pausing for a plan.
+2. **Observe** (about 34 s on enMaaS): it edits `QuizResource.java` and its test and runs
+   `./mvnw -pl arcade test -Dtest=QuizResourceTest` in its own shell.
+3. Reload `http://localhost:8080/quiz?answer=CHEAT`: **HTTP 400** `Invalid answer: expected A, B, C, or D`.
+4. Say: fast and correct, and it had a shell, wrote straight into the working tree, and ran tests on this laptop.
+   Act 2 does the same kind of fix with every action checked.
+
+## Act 2. The Java agent
+
+1. Presenter UI header. **Point at:** profile `ENTERPRISE`, endpoint `https://api.enmaas.devshift.net:443`,
    model id, workspace `run-…`, sandbox `isolated container`. The left panel's *Privacy boundary* text shows the
    pinned host, "credential: configured (hidden)", limits and leakage mode.
-3. Click **Acceptance: RPS**. **Observe** (about 15 s): `FAILED: 9 tests, 5 failures`. These are the
+2. Click **Acceptance: RPS**. **Observe** (about 15 s): `FAILED: 9 tests, 5 failures`. These are the
    presenter-owned checks; the agent cannot edit them.
 
 ## B. Inspect and propose (2.5 min)
@@ -101,6 +130,12 @@ and policy path.
    `approval.granted`) then `apply_patch (after human approval)` **ALLOW `write.approved`**; states become APPLIED.
 3. Click **Acceptance: RPS**. **Observe** (about 15 s): **`PASSED: 9 tests, 0 failures`**.
 4. Optional: **Unit tests**: `PASSED: 18 tests` (the agent updated the test that encoded the bug).
+5. Promote the approved change into the working tree and reload the game:
+   ```bash
+   scripts/promote-workspace.sh
+   ```
+   It shows the diff and asks before copying. Reload `http://localhost:8080/rps?move=banana`: **HTTP 400** with a
+   message naming the valid moves; the Quiz fix from Act 1 is untouched.
 
 If the agent proposed only the resource fix, send the preset **Follow-up: update the test**. This also shows
 conversation memory.
@@ -136,3 +171,5 @@ If time allows, or the primary task misbehaves: **Fresh workspace**, then preset
 | Model proposes a wrong diff | Reject it (that is the point of review), say what is wrong, ask again. |
 | Sandbox unavailable | Verification reports `NOT RUN: restricted execution environment unavailable (fails closed)`. Show that as a control; fix with `podman machine start`. |
 | Messy state | **Fresh workspace** button, or `scripts/reset-demo.sh` then `scripts/start.sh enterprise`. |
+| Arcade still shows fixes from the last run | `git checkout arcade/` (dev mode reloads), then **Fresh workspace**. |
+| OpenCode slow at the venue | Choose **Ollama (local)** in OpenCode; give the 4B model explicit file paths. |
