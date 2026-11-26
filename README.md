@@ -5,9 +5,6 @@ A small, runnable blueprint for a Claude Code-style coding agent built with **Qu
 guardrails enforced in code: secrets protection, data-leakage detection, unsafe-command blocking and
 allow/ask/deny action control.
 
-Companion repository for the Jfokus 2027 session *"Your Code Never Leaves: A Private Claude Code-Style Coding
-Agent in Java"*. The coding target is a small Quarkus game arcade with intentionally seeded bugs.
-
 ## Architecture
 
 ```mermaid
