@@ -4,6 +4,7 @@
 #   scripts/start.sh local       # loopback model: profiles/local-ollama.env
 #   scripts/start.sh scripted    # deterministic fallback, NO inference (clearly labelled)
 # Overrides: .demo/model.env (not committed) or BLUEPRINT_MODEL_* variables in your shell.
+# Ports: AGENT_PORT (default 8090) and MCP_PORT (default 8091), e.g. to run a second stack.
 source "$(dirname "$0")/lib.sh"
 PROFILE="${1:-enterprise}"
 ensure_tokens
@@ -29,15 +30,16 @@ say "Starting MCP server on 127.0.0.1:$MCP_PORT (workspace tools, policy, sandbo
 ( cd "$ROOT/mcp-server"
   BLUEPRINT_STATE_DIR="$DEMO" BLUEPRINT_FIXTURE_DIR="$ROOT/arcade" BLUEPRINT_ACCEPTANCE_DIR="$ROOT/acceptance" \
   BLUEPRINT_M2_DIR="$DEMO/m2" \
-  nohup java -jar target/quarkus-app/quarkus-run.jar > "$DEMO/logs/mcp-server.log" 2>&1 &
+  nohup java -Dquarkus.http.port="$MCP_PORT" -jar target/quarkus-app/quarkus-run.jar > "$DEMO/logs/mcp-server.log" 2>&1 &
   echo $! > "$DEMO/mcp-server.pid" )
-wait_http "http://127.0.0.1:$MCP_PORT/q/health" 60 || wait_http "http://127.0.0.1:$MCP_PORT/" 5 || true
+wait_http "http://127.0.0.1:$MCP_PORT/" 60 || true
 
 say "Starting agent + presenter UI on 127.0.0.1:$AGENT_PORT (profile: $PROFILE)"
 # The agent process gets the model settings; it never gets workspace paths.
 ( cd "$ROOT/agent"
   unset BLUEPRINT_STATE_DIR BLUEPRINT_FIXTURE_DIR BLUEPRINT_ACCEPTANCE_DIR BLUEPRINT_M2_DIR
-  nohup java -Dquarkus.profile="$PROFILE" -jar target/quarkus-app/quarkus-run.jar > "$DEMO/logs/agent.log" 2>&1 &
+  BLUEPRINT_MCP_URL="http://127.0.0.1:$MCP_PORT/mcp" \
+  nohup java -Dquarkus.profile="$PROFILE" -Dquarkus.http.port="$AGENT_PORT" -jar target/quarkus-app/quarkus-run.jar > "$DEMO/logs/agent.log" 2>&1 &
   echo $! > "$DEMO/agent.pid" )
 
 if wait_http "$AGENT_URL/api/status" 60; then
