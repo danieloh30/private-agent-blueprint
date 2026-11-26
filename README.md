@@ -29,8 +29,8 @@ flowchart LR
     TOOLS -->|request-scoped| WS[(Disposable workspace<br/>.demo/runs/run-…/workspace)]
     TOOLS -->|named tasks only| SANDBOX[[Restricted container<br/>network=none, read-only,<br/>limits, no host creds]]
     SANDBOX --> SCRATCH[(scratch copy +<br/>acceptance tests)]
-    FIXTURE[(arcade/<br/>your working tree)] -. copied per run .-> WS
-    WS -. promote-workspace.sh<br/>after approval .-> FIXTURE
+    FIXTURE[(arcade/<br/>your working tree)] -.->|copied per run| WS
+    WS -.->|"promote-workspace.sh<br/>after approval"| FIXTURE
 
     style DEV fill:#D4E6F1,stroke:#2E6B8A,color:#1F1F1F,stroke-width:2px
     style AGENT fill:#F5F5F0,stroke:#8B8070,color:#1F1F1F,stroke-width:2px
