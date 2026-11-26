@@ -1,6 +1,9 @@
 # AGENTS.md -- Quarkus Project Instructions
 
-This is a Quarkus application. Follow these rules when working on this project.
+This repository is a multi-module Maven build: `guardrails` (plain Java), `mcp-server` (Quarkus 3.40.1.2,
+see README "Versions"), `agent` (Quarkus 4.0.1) and `arcade` (Quarkus 4.0.1, the coding-target fixture with
+intentional bugs; do not fix them in `arcade/` itself). Follow these rules when working on this project.
+Run a module's tests with `./mvnw -pl <module> test`; the whole build with `./mvnw verify`.
 
 ## Required Workflow
 
@@ -12,7 +15,7 @@ This is a Quarkus application. Follow these rules when working on this project.
    searches unless those files do not contain the behavior.
 3. Make the smallest viable change using existing APIs and update the targeted
    test. If a new dependency is required, use the new-feature workflow below.
-4. Run only the related test with `./mvnw test -Dtest=<TestClass>`.
+4. Run only the related test with `./mvnw -pl <module> test -Dtest=<TestClass>`.
 5. Do not update documentation unless explicitly requested.
 6. Finish with a concise summary.
 

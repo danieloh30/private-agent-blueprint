@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Private Coding Agent</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --ink: #1b1f24; --muted: #59636e; --line: #d8dde3;
+    --allow: #1a7f37; --allow-bg: #dafbe1; --ask: #9a6700; --ask-bg: #fff8c5; --deny: #cf222e; --deny-bg: #ffebe9;
+    --accent: #0b5cad; --code: #f3f4f6;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 19px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; padding: 14px 22px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 24px; margin: 0 12px 0 0; }
+  .pill { border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 17px; white-space: nowrap; }
+  .pill b { font-weight: 650; }
+  .pill.profile-local { background: var(--allow-bg); border-color: var(--allow); }
+  .pill.profile-enterprise { background: #ddf4ff; border-color: var(--accent); }
+  .pill.profile-scripted { background: var(--ask-bg); border-color: var(--ask); font-weight: 700; }
+  .scripted-banner { display: none; background: var(--ask-bg); border-bottom: 2px solid var(--ask); padding: 10px 22px; font-weight: 700; font-size: 20px; }
+  main { display: grid; grid-template-columns: minmax(330px, 1fr) minmax(420px, 1.5fr) minmax(420px, 1.5fr); gap: 16px; padding: 16px 22px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+  h2 { font-size: 20px; margin: 0 0 10px; }
+  h3 { font-size: 16px; margin: 16px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  textarea { width: 100%; min-height: 150px; font: inherit; padding: 10px; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
+  button { font: inherit; font-size: 17px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; margin: 3px 4px 3px 0; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.approve { background: var(--allow); color: #fff; border-color: var(--allow); }
+  button.reject { color: var(--deny); border-color: var(--deny); }
+  button:disabled { opacity: .5; cursor: default; }
+  .note { color: var(--muted); font-size: 16px; }
+  #trace { display: flex; flex-direction: column; gap: 8px; max-height: calc(100vh - 170px); overflow-y: auto; }
+  .ev { border: 1px solid var(--line); border-left-width: 6px; border-radius: 8px; padding: 8px 10px; }
+  .ev.ALLOW { border-left-color: var(--allow); } .ev.ASK { border-left-color: var(--ask); } .ev.DENY { border-left-color: var(--deny); }
+  .ev .head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .ev .title { font-weight: 650; }
+  .ev .kind { font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .ev .meta { margin-left: auto; font-size: 14px; color: var(--muted); }
+  .ev pre { margin: 6px 0 0; max-height: 260px; overflow: auto; }
+  .badge { font-size: 15px; font-weight: 700; padding: 1px 8px; border-radius: 6px; }
+  .badge.ALLOW { background: var(--allow-bg); color: var(--allow); }
+  .badge.ASK { background: var(--ask-bg); color: var(--ask); }
+  .badge.DENY { background: var(--deny-bg); color: var(--deny); }
+  .rule { font-family: ui-monospace, Menlo, monospace; font-size: 15px; color: var(--muted); }
+  pre { background: var(--code); border-radius: 6px; padding: 8px; font: 15px/1.4 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+  .diff .add { background: #e6ffec; color: #116329; display: block; }
+  .diff .del { background: #ffebe9; color: #82071e; display: block; }
+  .diff .hunk { color: var(--accent); display: block; }
+  .proposal { border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-bottom: 12px; }
+  .proposal .head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .state { font-weight: 700; font-size: 15px; padding: 1px 8px; border-radius: 6px; background: var(--code); }
+  .state.PENDING { background: var(--ask-bg); color: var(--ask); }
+  .state.APPLIED { background: var(--allow-bg); color: var(--allow); }
+  .state.REJECTED, .state.FAILED { background: var(--deny-bg); color: var(--deny); }
+  #verify-box { font-size: 18px; }
+  #verify-box .big { font-size: 22px; font-weight: 700; }
+  .ok { color: var(--allow); } .bad { color: var(--deny); }
+  @media (max-width: 1300px) { main { grid-template-columns: 1fr; } #trace { max-height: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Your Code Never Leaves</h1>
+  <span class="pill" id="p-profile">profile: …</span>
+  <span class="pill">endpoint: <b id="p-endpoint">…</b></span>
+  <span class="pill">model: <b id="p-model">…</b></span>
+  <span class="pill">workspace: <b id="p-workspace">…</b></span>
+  <span class="pill">sandbox: <b id="p-sandbox">…</b></span>
+</header>
+<div class="scripted-banner" id="scripted-banner">
+  SCRIPTED FALLBACK: no model inference. Tool calls are pre-recorded; MCP, policy and sandbox are real.
+</div>
+<main>
+  <section>
+    <h2>Developer request</h2>
+    <textarea id="prompt" placeholder="Ask the agent…"></textarea>
+    <div>
+      <button class="primary" id="send">Send to agent</button>
+      <span class="note" id="run-state"></span>
+    </div>
+    <h3>Demo prompts (live agent)</h3>
+    <div id="presets"></div>
+    <h3>Deterministic probes (no model)</h3>
+    <div class="note">Fixed requests through the same MCP and policy path.</div>
+    <div>
+      <button data-probe="secret">Secret file read</button>
+      <button data-probe="traversal">Path traversal</button>
+      <button data-probe="canary">Canary</button>
+      <button data-probe="restricted">Restricted marker</button>
+      <button data-probe="command">Arbitrary command</button>
+      <button data-probe="unknown-tool">Unknown tool</button>
+      <button data-probe="unapproved-write">Write without approval</button>
+    </div>
+    <h3>Presenter checks (sandboxed)</h3>
+    <div>
+      <button data-verify="acceptance-rps">Acceptance: RPS</button>
+      <button data-verify="unit-tests">Unit tests</button>
+      <button data-verify="acceptance-scramble">Acceptance: Scramble</button>
+    </div>
+    <h3>Run</h3>
+    <div>
+      <button id="reset">Fresh workspace</button>
+      <a href="/api/evidence" target="_blank"><button>Evidence (JSON)</button></a>
+    </div>
+    <h3>Privacy boundary</h3>
+    <div class="note" id="boundary"></div>
+  </section>
+
+  <section>
+    <h2>Tool trace and policy decisions</h2>
+    <div class="note">Tool calls, decisions and inspected results. No hidden model reasoning is requested or shown.</div>
+    <div id="trace"></div>
+  </section>
+
+  <section>
+    <h2>Verification</h2>
+    <div id="verify-box" class="note">No verification run yet.</div>
+    <h2 style="margin-top:18px">Proposed changes</h2>
+    <div id="proposals" class="note">No proposals yet.</div>
+  </section>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+let after = 0, sessionId = null, running = false;
+
+function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function diffHtml(d) {
+  return esc(d).split('\n').map(l => {
+    if (l.startsWith('+++') || l.startsWith('---')) return `<span>${l}</span>`;
+    if (l.startsWith('+')) return `<span class="add">${l}</span>`;
+    if (l.startsWith('-')) return `<span class="del">${l}</span>`;
+    if (l.startsWith('@@')) return `<span class="hunk">${l}</span>`;
+    return `<span>${l}</span>`;
+  }).join('\n');
+}
+async function api(path, opts = {}) {
+  const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  const t = await r.text();
+  try { return JSON.parse(t); } catch { return { raw: t, status: r.status }; }
+}
+
+async function loadStatus() {
+  const s = await api('/api/status');
+  const p = $('#p-profile');
+  p.className = 'pill profile-' + s.profile;
+  p.innerHTML = 'profile: <b>' + esc(s.scripted ? 'SCRIPTED FALLBACK' : s.profile.toUpperCase()) + '</b>';
+  $('#p-endpoint').textContent = s.endpoint;
+  $('#p-model').textContent = s.model;
+  $('#scripted-banner').style.display = s.scripted ? 'block' : 'none';
+  const srv = s.server || {};
+  $('#p-workspace').textContent = srv.workspaceId || 'MCP server unreachable';
+  $('#p-sandbox').textContent = srv.isolationAvailable ? 'isolated container' : 'UNAVAILABLE (fails closed)';
+  $('#boundary').innerHTML =
+    `Model traffic only to <b>${esc(s.endpoint)}</b> (redirects off, destination pinned). ` +
+    `Credential: ${esc(s.credential)}. Tools: ${esc((s.allowedTools||[]).join(', '))}. ` +
+    `Limits: ${s.limits.maxSteps} steps, ${s.limits.maxToolCalls} tool calls, ${s.limits.maxRunTimeSeconds}s. ` +
+    `Leakage mode: ${esc(s.leakageMode)}. Blocked egress attempts: ${s.deniedEgressAttempts}. ` +
+    `<br><i>Application settings are not a network boundary; see the threat model.</i>`;
+}
+
+async function loadPresets() {
+  const ps = await api('/api/presets');
+  $('#presets').innerHTML = ps.map(p => `<button data-preset="${esc(p.id)}" title="${esc(p.expectation)}">${esc(p.label)}</button>`).join('');
+  document.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => {
+    const p = ps.find(x => x.id === b.dataset.preset); $('#prompt').value = p.text; });
+}
+
+function renderEvent(e) {
+  const v = e.verdict || '';
+  const div = document.createElement('div');
+  div.className = 'ev ' + v;
+  const dur = e.durationMs ? (e.durationMs >= 1000 ? (e.durationMs/1000).toFixed(1) + ' s' : e.durationMs + ' ms') : '';
+  div.innerHTML = `<div class="head"><span class="kind">${esc(e.kind)}</span><span class="title">${esc(e.title)}</span>`
+    + (v ? `<span class="badge ${v}">${v}</span>` : '')
+    + (e.rule ? `<span class="rule">${esc(e.rule)}</span>` : '')
+    + `<span class="meta">${esc(e.time)} ${dur}</span></div>`
+    + (e.detail ? `<pre>${e.kind === 'TOOL' && e.title.startsWith('propose_patch') || e.title.startsWith('apply_patch') ? diffHtml(e.detail) : esc(e.detail)}</pre>` : '');
+  $('#trace').appendChild(div);
+  div.scrollIntoView({ block: 'end', behavior: 'smooth' });
+  if (e.kind === 'VERIFICATION' && v) {
+    const ok = v === 'ALLOW';
+    $('#verify-box').innerHTML = `<div class="big ${ok ? 'ok' : 'bad'}">${esc(e.title)}</div><pre>${esc(e.detail)}</pre>`;
+  }
+}
+
+async function poll() {
+  try {
+    const s = await api('/api/session?after=' + after);
+    if (s.id !== sessionId) { sessionId = s.id; after = 0; $('#trace').innerHTML = ''; return poll(); }
+    s.events.forEach(e => { renderEvent(e); after = Math.max(after, e.seq); });
+    running = s.running;
+    $('#send').disabled = running;
+    $('#run-state').textContent = running ? 'agent working…' : '';
+  } catch (e) { $('#run-state').textContent = 'agent unreachable'; }
+}
+
+async function loadProposals() {
+  const ps = await api('/api/proposals');
+  if (!Array.isArray(ps) || ps.length === 0) { $('#proposals').innerHTML = 'No proposals yet.'; return; }
+  $('#proposals').classList.remove('note');
+  $('#proposals').innerHTML = ps.slice().reverse().map(p => `
+    <div class="proposal">
+      <div class="head"><b>${esc(p.id)}</b><span class="rule">${esc(p.path)}</span><span class="state ${p.state}">${p.state}</span></div>
+      <div class="note">patch sha256 ${esc(p.patchSha256.slice(0,12))}… bound to workspace ${esc(p.workspaceId)}, expires ${esc(p.expiresAt.slice(11,19))} UTC</div>
+      <pre class="diff">${diffHtml(p.diff)}</pre>
+      ${p.state === 'PENDING' ? `<button class="approve" data-approve="${esc(p.id)}" data-sha="${esc(p.patchSha256)}">Approve and apply this diff</button>
+        <button class="reject" data-reject="${esc(p.id)}">Reject</button>` : ''}
+    </div>`).join('');
+  document.querySelectorAll('[data-approve]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    await api(`/api/proposals/${b.dataset.approve}/approve`, { method: 'POST', body: JSON.stringify({ patchSha256: b.dataset.sha }) });
+    loadProposals(); poll();
+  });
+  document.querySelectorAll('[data-reject]').forEach(b => b.onclick = async () => {
+    await api(`/api/proposals/${b.dataset.reject}/reject`, { method: 'POST' }); loadProposals(); poll();
+  });
+}
+
+$('#send').onclick = async () => {
+  const text = $('#prompt').value.trim(); if (!text) return;
+  $('#send').disabled = true;
+  await api('/api/ask', { method: 'POST', body: JSON.stringify({ text }) });
+  poll();
+};
+document.querySelectorAll('[data-probe]').forEach(b => b.onclick = async () => {
+  b.disabled = true; await api('/api/probes/' + b.dataset.probe, { method: 'POST' }); b.disabled = false; poll(); loadProposals(); });
+document.querySelectorAll('[data-verify]').forEach(b => b.onclick = async () => {
+  b.disabled = true; $('#verify-box').innerHTML = '<div class="big">Running ' + esc(b.dataset.verify) + ' in the sandbox…</div>';
+  setTimeout(poll, 300);
+  await api('/api/verify/' + b.dataset.verify, { method: 'POST' }); b.disabled = false; poll(); });
+$('#reset').onclick = async () => {
+  await api('/api/reset', { method: 'POST' });
+  $('#verify-box').innerHTML = 'No verification run yet.'; loadStatus(); loadProposals(); poll(); };
+
+loadStatus(); loadPresets(); poll(); loadProposals();
+setInterval(poll, 1000); setInterval(loadProposals, 2500); setInterval(loadStatus, 15000);
+</script>
+</body>
+</html>

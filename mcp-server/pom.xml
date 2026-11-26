@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.agentcon.blueprint</groupId>
+        <artifactId>private-agent-blueprint</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+    <artifactId>mcp-server</artifactId>
+    <packaging>quarkus</packaging>
+    <name>Java MCP server: workspace tools, policy, sandboxed verification</name>
+
+    <properties>
+        <!--
+          KNOWN LIMITATION (Nov 2026): quarkus-mcp-server 2.1.0, the version managed by the Quarkus 4.0.1
+          platform, registers a Jackson 2 io.quarkus.jackson.ObjectMapperCustomizer that Quarkus 4 (Jackson 3)
+          removed, so it fails at build time. This module therefore stays on Quarkus 3.40.1.2 with
+          quarkus-mcp-server 2.0.4. It runs as its own process, so the agent and arcade can use Quarkus 4.0.1.
+          Move to 4.x once a Quarkus 4 compatible quarkus-mcp-server is released.
+        -->
+        <quarkus.platform.version>3.40.1.2</quarkus.platform.version>
+    </properties>
+
+    <dependencies>
+        <!-- Streamable HTTP MCP transport (endpoint: /mcp) -->
+        <dependency>
+            <groupId>io.quarkiverse.mcp</groupId>
+            <artifactId>quarkus-mcp-server-http</artifactId>
+        </dependency>
+        <!-- Presenter-only admin endpoints (approvals, audit, acceptance); JSON via Vert.x JsonObject. -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.agentcon.blueprint</groupId>
+            <artifactId>guardrails</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.java-diff-utils</groupId>
+            <artifactId>java-diff-utils</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Real MCP client used by the tests (same client library the agent uses) -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-mcp</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>${quarkus.platform.group-id}</groupId>
+                <artifactId>quarkus-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <artifactId>maven-surefire-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>
