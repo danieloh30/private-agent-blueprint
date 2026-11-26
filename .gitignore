@@ -43,3 +43,6 @@ nb-configuration.xml
 /.quarkus/cli/plugins/
 # TLS Certificates
 .certs/
+
+# Disposable demo state (runs, logs, evidence, tokens, Maven cache)
+.demo/

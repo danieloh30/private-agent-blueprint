@@ -1,7 +1,26 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "private-provider/Qwen3.8-27B",
+  // Same private gateway and model as the Java agent's enterprise profile (profiles/enterprise.env).
+  // The key is read from the environment; never put it in this file.
+  "model": "enmaas/rits/deepseek-ai/DeepSeek-V4.1-Flash-1017",
   "provider": {
+    "enmaas": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Red Hat enMaaS",
+      "options": {
+        "baseURL": "https://api.enmaas.devshift.net/v1",
+        "apiKey": "{env:ENMAAS_KEY}"
+      },
+      "models": {
+        "rits/deepseek-ai/DeepSeek-V4.1-Flash-1017": {
+          "name": "DeepSeek V4.1 Flash (enMaaS)",
+          "reasoning": false
+        },
+        "rits/zai-org/glm-5-3": {
+          "name": "GLM 5.3 (enMaaS)"
+        }
+      }
+    },
     "private-provider": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "LiteMaaS AI Gateway",
