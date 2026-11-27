@@ -24,6 +24,9 @@ import java.util.regex.Pattern;
 @ApplicationScoped
 public class AgentService {
 
+    /** Changes on every start of the agent process; the console uses it to reset stale demo progress. */
+    private static final String INSTANCE = java.util.UUID.randomUUID().toString();
+
     private final AgentConfig config;
     private final ModelFactory models;
     private final ToolGateway tools;
@@ -247,6 +250,7 @@ public class AgentService {
         var e = models.endpoint();
         JsonObject server = admin.get("/status").json();
         return new JsonObject()
+                .put("instance", INSTANCE)
                 .put("profile", e.profile().name().toLowerCase())
                 .put("scripted", models.scripted())
                 .put("endpoint", e.display())

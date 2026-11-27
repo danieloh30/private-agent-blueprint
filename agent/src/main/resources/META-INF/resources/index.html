@@ -162,7 +162,7 @@
   <button class="tool" id="next" title="Next step (→)">Next →</button>
   <button class="tool" id="toggle-insight" title="Show or hide insights (i)">Insights: on</button>
   <button class="tool" id="toggle-cue" title="Show or hide the presenter cue (p)">Presenter cue: on</button>
-  <button class="tool" id="restart-flow" title="Clear the step checkmarks">Restart flow</button>
+  <button class="tool" id="restart-flow" title="Fresh workspace, clear all progress, back to step 1">Start over</button>
 </nav>
 <aside id="insight" class="insight" aria-live="polite"></aside>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -204,7 +204,7 @@
 
     <h3>Run</h3>
     <div>
-      <button id="reset">Fresh workspace</button>
+      <button id="reset" title="New disposable copy of arcade/ for the next task; your demo progress is kept">Fresh workspace</button>
       <a href="/api/evidence" target="_blank"><button>Evidence (JSON)</button></a>
     </div>
     <h3>Privacy boundary</h3>
@@ -370,7 +370,6 @@ $('#prev').onclick = () => goStep(flow.current - 1);
 $('#next').onclick = () => goStep(flow.current + 1);
 $('#toggle-insight').onclick = () => { flow.insight = !flow.insight; store('insight', flow.insight); applyToggles(); };
 $('#toggle-cue').onclick = () => { flow.cue = !flow.cue; store('cue', flow.cue); applyToggles(); };
-$('#restart-flow').onclick = () => { flow.done.clear(); store('done', []); goStep(0); };
 document.addEventListener('keydown', (e) => {
   if (e.target.matches('textarea, input') || e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key === 'ArrowRight') goStep(flow.current + 1);
@@ -382,6 +381,13 @@ document.addEventListener('keydown', (e) => {
 // ---------- Status ----------
 async function loadStatus() {
   const s = await api('/api/status');
+  if (s.instance && load('instance', null) !== s.instance) {
+    store('instance', s.instance);
+    if (flow.done.size || flow.current !== 0) {
+      flow.done.clear(); store('done', []); goStep(0);
+      toast('<b>New stack started:</b> the demo flow is back at step 1.');
+    }
+  }
   const p = $('#p-profile');
   p.className = 'pill profile-' + s.profile;
   p.innerHTML = 'profile: <b>' + esc(s.scripted ? 'SCRIPTED FALLBACK' : String(s.profile).toUpperCase()) + '</b>';
@@ -604,25 +610,41 @@ function toast(html, error) {
   t.innerHTML = html; t.classList.toggle('error', !!error); t.classList.add('show');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 7000);
 }
-$('#reset').onclick = async () => {
-  const btn = $('#reset'), label = btn.textContent, before = $('#p-workspace').textContent;
-  btn.disabled = true; btn.textContent = 'Creating fresh workspace…'; btn.classList.add('busy');
+// New disposable workspace: shared by Fresh workspace (keeps progress) and Start over (clears it).
+async function newWorkspace(btn, busyText) {
+  const label = btn.textContent, before = $('#p-workspace').textContent;
+  btn.disabled = true; btn.textContent = busyText; btn.classList.add('busy');
   const r = await api('/api/reset', { method: 'POST' });
   btn.disabled = false; btn.textContent = label; btn.classList.remove('busy');
   if (!r || !r.workspaceId) {
     toast('Could not create a fresh workspace: ' + esc((r && (r.error || r.raw)) || 'MCP server unreachable'), true);
-    return;
+    return null;
   }
-  toast(`<b>✓ Fresh workspace ready:</b> <code>${esc(r.workspaceId)}</code>`
-    + (before && before !== '…' ? ` <span class="note">(was ${esc(before)})</span>` : '')
-    + (r.files >= 0 ? `<br>Copied ${r.files} files from <code>arcade/</code>. ` : '<br>')
-    + 'Proposals, approvals and verification history are cleared.');
   $('#p-workspace').textContent = r.workspaceId;
   const pill = $('#p-workspace').closest('.pill');
   pill.classList.remove('flash'); void pill.offsetWidth; pill.classList.add('flash');
   $('#verify-box').innerHTML = `<div class="empty">Fresh workspace <code>${esc(r.workspaceId)}</code>. No verification run yet.</div>`;
+  history.length = 0; renderHistory(); appliedInSession = false;
   promoteResult = ''; promoteView = '';
-  showInsight('action:reset'); loadStatus(); loadProposals(); loadPromote(); poll(); };
+  loadStatus(); loadProposals(); loadPromote(); poll();
+  r.line = `<code>${esc(r.workspaceId)}</code>`
+    + (before && before !== '…' && before !== r.workspaceId ? ` <span class="note">(was ${esc(before)})</span>` : '')
+    + (r.files >= 0 ? `<br>Copied ${r.files} files from <code>arcade/</code>.` : '');
+  return r;
+}
+$('#reset').onclick = async () => {
+  const r = await newWorkspace($('#reset'), 'Creating fresh workspace…'); if (!r) return;
+  toast(`<b>✓ Fresh workspace ready:</b> ${r.line} Proposals, approvals and verification history are cleared.`
+    + '<br>Your demo progress is kept. To reset everything, use <b>Start over</b>.');
+  showInsight('action:reset');
+};
+$('#restart-flow').onclick = async () => {
+  const r = await newWorkspace($('#restart-flow'), 'Starting over…'); if (!r) return;
+  flow.done.clear(); store('done', []); goStep(0);
+  toast(`<b>✓ Started over:</b> fresh workspace ${r.line}`
+    + '<br>All step checkmarks, proposals, approvals and verification history are cleared. Begin with step 1.'
+    + '<br><span class="note">Fixes you promoted stay in <code>arcade/</code>; to bring the bugs back, run <code>git checkout arcade/</code>.</span>');
+};
 
 applyToggles(); renderSteps(); showInsight(STEPS[flow.current].insight);
 loadStatus(); loadPresets(); poll(); loadProposals();

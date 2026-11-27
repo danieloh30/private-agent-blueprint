@@ -42,6 +42,13 @@ happened.
 | **i** | Hide or show the insight card |
 | **p** | Hide or show the *Say* line (your presenter cue) |
 
+Two buttons reset things, for different reasons:
+
+- **Start over** (in the Demo flow bar): a fresh workspace, all checkmarks and results cleared, back to step 1. Use it
+  between rehearsals. Restarting the stack with `scripts/start.sh` also puts the flow back at step 1.
+- **Fresh workspace** (under Run): a new disposable copy for the next task. Your progress is kept, so after step 4
+  it moves you to step 6.
+
 The insights below are the same ones the console shows.
 
 ## Steps

@@ -95,6 +95,9 @@ scripts/reset-demo.sh
 scripts/start.sh enterprise
 ```
 
+To rehearse again without restarting anything, click **Start over** in the console: a fresh workspace, all
+checkmarks and results cleared, back to step 1. For a full reset between sessions, use the commands above.
+
 `git checkout arcade/` restores all three bugs (and drops OpenCode's and the promoted changes). `reset-demo.sh` stops
 the agent and MCP server and removes only `.demo/runs`, `.demo/logs` and `.demo/evidence`; the Maven cache and tokens
 stay. Restart dev mode in its own terminal (`cd arcade && ../mvnw quarkus:dev`) if you stopped it.
