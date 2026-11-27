@@ -14,8 +14,16 @@
   body { margin: 0; background: var(--bg); color: var(--ink); font: 18px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
   code { font: .9em ui-monospace, Menlo, Consolas, monospace; background: var(--code); padding: 0 4px; border-radius: 4px; }
 
-  header { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 10px 20px; background: var(--panel); border-bottom: 1px solid var(--line); }
-  header h1 { font-size: 22px; margin: 0 10px 0 0; }
+  header { padding: 10px 20px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  header .top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+  header h1 { font-size: 22px; margin: 0; }
+  header .pills { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 8px; }
+  header .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  header .controls button { margin: 0; font-size: 15px; padding: 5px 12px; border-radius: 999px; }
+  .toggle { background: var(--accent-bg); border-color: #8cc2f0; color: #0a3d73; }
+  .toggle.off { background: #fff; border-color: var(--line); color: var(--muted); }
+  .start-over { background: #fff0ec; border: 1px solid #e5533d; color: #b42318; font-weight: 650; }
+  .start-over:hover:not(:disabled) { background: #ffe1d9; border-color: #b42318; }
   .pill { border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px; font-size: 15px; white-space: nowrap; }
   .pill b { font-weight: 650; }
   .pill.profile-local { background: var(--allow-bg); border-color: var(--allow); }
@@ -24,10 +32,12 @@
   .scripted-banner { display: none; background: var(--ask-bg); border-bottom: 2px solid var(--ask); padding: 10px 20px; font-weight: 700; font-size: 19px; }
 
   /* Demo flow stepper */
-  #flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 20px 0; }
+  #flow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 10px 20px 0; }
+  #flow #steps { gap: 6px; }
+  @media (max-width: 1500px) { #flow .label { display: none; } }
   #flow .label { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
-  .step { display: flex; align-items: center; gap: 8px; font-size: 16px; padding: 6px 12px 6px 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); margin: 0; }
-  .step .num { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--code); font-weight: 700; font-size: 14px; }
+  .step { display: flex; align-items: center; gap: 6px; font-size: 15px; padding: 4px 11px 4px 5px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); margin: 0; }
+  .step .num { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--code); font-weight: 700; font-size: 14px; }
   .step.current { border-color: var(--accent); background: var(--accent-bg); font-weight: 650; }
   .step.current .num { background: var(--accent); color: #fff; }
   .step.done .num { background: var(--allow); color: #fff; }
@@ -154,12 +164,21 @@
 </head>
 <body>
 <header>
-  <h1>Your Code Never Leaves</h1>
+  <div class="top">
+    <h1>Your Code Never Leaves</h1>
+    <div class="controls">
+      <button class="toggle" id="toggle-insight" title="Show or hide insights (i)">Insights: on</button>
+      <button class="toggle" id="toggle-cue" title="Show or hide the presenter cue (p)">Presenter cue: on</button>
+      <button class="start-over" id="restart-flow" title="Fresh workspace, clear all progress, back to step 1">↺ Start over</button>
+    </div>
+  </div>
+  <div class="pills">
   <span class="pill" id="p-profile">profile: …</span>
   <span class="pill">endpoint: <b id="p-endpoint">…</b></span>
   <span class="pill">model: <b id="p-model">…</b></span>
   <span class="pill">workspace: <b id="p-workspace">…</b></span>
   <span class="pill">sandbox: <b id="p-sandbox">…</b></span>
+  </div>
 </header>
 <div class="scripted-banner" id="scripted-banner">
   SCRIPTED FALLBACK: no model inference. Tool calls are pre-recorded; MCP, policy and sandbox are real.
@@ -171,9 +190,6 @@
   <span class="spacer"></span>
   <button class="tool" id="prev" title="Previous step (←)">← Prev</button>
   <button class="tool" id="next" title="Next step (→)">Next →</button>
-  <button class="tool" id="toggle-insight" title="Show or hide insights (i)">Insights: on</button>
-  <button class="tool" id="toggle-cue" title="Show or hide the presenter cue (p)">Presenter cue: on</button>
-  <button class="tool" id="restart-flow" title="Fresh workspace, clear all progress, back to step 1">Start over</button>
 </nav>
 <aside id="insight" class="insight" aria-live="polite"></aside>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -391,6 +407,8 @@ function applyToggles() {
   document.body.classList.toggle('no-cue', !flow.cue);
   $('#toggle-insight').textContent = 'Insights: ' + (flow.insight ? 'on' : 'off');
   $('#toggle-cue').textContent = 'Presenter cue: ' + (flow.cue ? 'on' : 'off');
+  $('#toggle-insight').classList.toggle('off', !flow.insight);
+  $('#toggle-cue').classList.toggle('off', !flow.cue);
   measureInsights();
 }
 $('#prev').onclick = () => goStep(flow.current - 1);

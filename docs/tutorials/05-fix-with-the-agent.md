@@ -44,7 +44,7 @@ happened.
 
 Two buttons reset things, for different reasons:
 
-- **Start over** (in the Demo flow bar): a fresh workspace, all checkmarks and results cleared, back to step 1. Use it
+- **↺ Start over** (top right, next to the Insights and Presenter cue toggles): a fresh workspace, all checkmarks and results cleared, back to step 1. Use it
   between rehearsals. Restarting the stack with `scripts/start.sh` also puts the flow back at step 1.
 - **Fresh workspace** (under Run): a new disposable copy for the next task. Your progress is kept, so after step 4
   it moves you to step 6.
