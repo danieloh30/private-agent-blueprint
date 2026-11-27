@@ -38,23 +38,27 @@
   #next.ready { border-color: var(--accent); color: var(--accent); font-weight: 650; animation: nudge 1.6s ease-in-out infinite; }
 
   /* Insight card */
-  #insight { margin: 10px 20px 0; background: var(--insight); border: 1px solid var(--insight-line); border-left: 8px solid var(--insight-line); border-radius: 10px; padding: 12px 18px; }
-  #insight.hidden { display: none; }
-  /* Stable height so the controls below don't move when the insight changes mid-demo. */
-  @media (min-width: 1301px) { #insight { height: 232px; overflow-y: auto; } }
-  #insight .kicker { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #8a6d00; }
-  #insight h2 { font-size: 21px; margin: 2px 0 4px; }
-  #insight .headline { font-size: 25px; line-height: 1.35; font-weight: 600; margin: 0 0 6px; }
-  #insight ul { margin: 4px 0 0; padding-left: 22px; columns: 2 420px; column-gap: 32px; }
-  #insight li { margin: 0 0 4px; break-inside: avoid; }
-  #insight .extra { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 8px; align-items: center; }
-  #insight .vs { font-size: 16px; background: #fff; border: 1px dashed #b08a1a; border-radius: 8px; padding: 4px 10px; }
-  #insight .vs b { color: #8a6d00; }
-  #insight .say { font-size: 17px; font-style: italic; color: #3d3d3d; border-left: 3px solid var(--accent); padding-left: 10px; }
-  #insight .say b { font-style: normal; color: var(--accent); font-size: 13px; letter-spacing: .06em; text-transform: uppercase; margin-right: 6px; }
-  body.no-cue #insight .say { display: none; }
-  #insight .cmd { display: inline-flex; align-items: center; gap: 6px; }
-  #insight .cmd code { font-size: 17px; padding: 4px 8px; }
+  /* Main content on the left, Act 1 contrast and presenter cue on the right. The card never clips:
+     a min-height keeps the controls below steady for typical insights, and longer ones may grow. */
+  .insight { margin: 10px 20px 0; background: var(--insight); border: 1px solid var(--insight-line); border-left: 8px solid var(--insight-line); border-radius: 10px; padding: 12px 18px;
+             display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 30%); gap: 6px 28px; align-items: start; }
+  @media (min-width: 1301px) { #insight { min-height: var(--insight-min, 0px); } }
+  .insight.hidden { display: none; }
+  .insight .main { min-width: 0; }
+  .insight .kicker { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #8a6d00; }
+  .insight h2 { font-size: 19px; margin: 2px 0 2px; color: #4a4030; }
+  .insight .headline { font-size: 24px; line-height: 1.35; font-weight: 600; margin: 0 0 6px; }
+  .insight ul { margin: 4px 0 0; padding-left: 22px; }
+  .insight li { margin: 0 0 3px; }
+  .insight .extra { display: flex; flex-direction: column; gap: 10px; align-items: stretch; padding-top: 4px; }
+  .insight .extra:empty { display: none; }
+  .insight .vs { font-size: 16px; background: #fff; border: 1px dashed #b08a1a; border-radius: 8px; padding: 6px 10px; }
+  .insight .vs b { color: #8a6d00; }
+  .insight .say { font-size: 17px; font-style: italic; color: #3d3d3d; border-left: 3px solid var(--accent); padding-left: 10px; }
+  .insight .say b { font-style: normal; color: var(--accent); font-size: 13px; letter-spacing: .06em; text-transform: uppercase; margin-right: 6px; }
+  body.no-cue .insight .say { display: none; }
+  .insight .cmd { display: inline-flex; align-items: center; gap: 6px; }
+  .insight .cmd code { font-size: 17px; padding: 4px 8px; }
   mark { background: var(--mark); color: inherit; padding: 0 3px; border-radius: 4px; font-weight: 650; }
   .v { font-weight: 800; padding: 0 6px; border-radius: 5px; font-size: .92em; }
   .v.ALLOW { background: var(--allow-bg); color: var(--allow); }
@@ -121,7 +125,7 @@
   #history { list-style: none; margin: 8px 0 0; padding: 0; font-size: 15px; }
   #history li { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; border-top: 1px solid var(--code); }
   #history .t { color: var(--muted); font-size: 13px; margin-left: auto; }
-  @media (max-width: 1300px) { main { grid-template-columns: 1fr; } #trace { max-height: none; } #insight ul { columns: 1; } }
+  @media (max-width: 1300px) { main { grid-template-columns: 1fr; } #trace { max-height: none; } .insight { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -147,7 +151,7 @@
   <button class="tool" id="toggle-cue" title="Show or hide the presenter cue (p)">Presenter cue: on</button>
   <button class="tool" id="restart-flow" title="Clear the step checkmarks">Restart flow</button>
 </nav>
-<aside id="insight" aria-live="polite"></aside>
+<aside id="insight" class="insight" aria-live="polite"></aside>
 
 <main>
   <section>
@@ -279,31 +283,53 @@ function resolve(key) {
 }
 function showInsight(key) {
   const ins = resolve(key); if (!ins) return;
-  const step = STEPS[flow.current];
-  const box = $('#insight');
-  box.innerHTML =
-    `<div class="kicker">Step ${step.n} · ${esc(step.label)}</div>`
-    + `<h2>${esc(ins.title)}</h2>`
-    + `<p class="headline">${md(ins.headline)}</p>`
-    + (ins.points && ins.points.length ? `<ul>${ins.points.map(p => `<li>${md(p)}</li>`).join('')}</ul>` : '')
-    + `<div class="extra">`
-    + (ins.command ? `<span class="cmd"><code>${esc(ins.command)}</code><button class="tool" id="copy-cmd">Copy</button></span>` : '')
-    + (ins.link ? `<a href="${esc(ins.link)}" target="_blank">${esc(ins.link)}</a>` : '')
-    + (ins.command ? `<button class="tool" id="mark-promoted">Mark as promoted</button>` : '')
-    + (ins.vs ? `<span class="vs"><b>vs Act 1:</b> ${md(ins.vs)}</span>` : '')
-    + (ins.say ? `<span class="say"><b>Say</b>${md(ins.say)}</span>` : '')
-    + `</div>`;
+  $('#insight').innerHTML = insightHtml(ins, STEPS[flow.current]);
   const copy = $('#copy-cmd');
   if (copy) copy.onclick = async () => {
     try { await navigator.clipboard.writeText(ins.command); copy.textContent = 'Copied'; } catch (e) { copy.textContent = 'Copy failed'; }
   };
   const mp = $('#mark-promoted'); if (mp) mp.onclick = () => markDone('promote');
 }
+// Size the card to the tallest insight at this window width, so it never clips and never jumps.
+function measureInsights() {
+  const box = $('#insight');
+  if (box.classList.contains('hidden')) return;
+  const probe = document.createElement('aside');
+  probe.className = 'insight';
+  probe.style.cssText = `position:absolute; visibility:hidden; left:0; top:0; margin:0; min-height:0; width:${box.getBoundingClientRect().width}px`;
+  document.body.appendChild(probe);
+  const longest = STEPS.reduce((a, s) => s.label.length > a.label.length ? s : a, STEPS[0]);
+  let max = 0;
+  Object.keys(INSIGHTS).forEach(k => {
+    const ins = resolve(k); if (!ins) return;
+    probe.innerHTML = insightHtml(ins, longest);
+    max = Math.max(max, probe.getBoundingClientRect().height);
+  });
+  probe.remove();
+  document.documentElement.style.setProperty('--insight-min', Math.ceil(max) + 'px');
+}
+let measureTimer;
+window.addEventListener('resize', () => { clearTimeout(measureTimer); measureTimer = setTimeout(measureInsights, 150); });
+function insightHtml(ins, step) {
+  return `<div class="main">`
+    + `<div class="kicker">Step ${step.n} · ${esc(step.label)}</div>`
+    + `<h2>${esc(ins.title)}</h2>`
+    + `<p class="headline">${md(ins.headline)}</p>`
+    + (ins.points && ins.points.length ? `<ul>${ins.points.map(p => `<li>${md(p)}</li>`).join('')}</ul>` : '')
+    + (ins.command ? `<div class="row" style="margin-top:6px"><span class="cmd"><code>${esc(ins.command)}</code><button class="tool" id="copy-cmd">Copy</button></span>`
+        + (ins.link ? `<a href="${esc(ins.link)}" target="_blank">${esc(ins.link)}</a>` : '')
+        + `<button class="tool" id="mark-promoted">Mark as promoted</button></div>` : '')
+    + `</div><div class="extra">`
+    + (ins.vs ? `<span class="vs"><b>vs Act 1:</b> ${md(ins.vs)}</span>` : '')
+    + (ins.say ? `<span class="say"><b>Say</b>${md(ins.say)}</span>` : '')
+    + `</div>`;
+}
 function applyToggles() {
   $('#insight').classList.toggle('hidden', !flow.insight);
   document.body.classList.toggle('no-cue', !flow.cue);
   $('#toggle-insight').textContent = 'Insights: ' + (flow.insight ? 'on' : 'off');
   $('#toggle-cue').textContent = 'Presenter cue: ' + (flow.cue ? 'on' : 'off');
+  measureInsights();
 }
 $('#prev').onclick = () => goStep(flow.current - 1);
 $('#next').onclick = () => goStep(flow.current + 1);
