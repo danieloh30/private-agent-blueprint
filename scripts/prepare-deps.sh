@@ -17,6 +17,7 @@ mkdir -p "$prep/arcade/src/test/java/acceptance"
 cp "$ROOT"/acceptance/src/test/java/acceptance/*.java "$prep/arcade/src/test/java/acceptance/"
 $SANDBOX_ENGINE run --rm --cap-drop=ALL --security-opt=no-new-privileges \
   -v "$prep/arcade:/work" -v "$DEMO/m2:/m2" -w /work "$SANDBOX_IMAGE" \
-  mvn -B -ntp -q -Dmaven.repo.local=/m2 -Dmaven.test.failure.ignore=true test >/dev/null
+  mvn -B -ntp -Dmaven.repo.local=/m2 -Dmaven.test.failure.ignore=true test \
+  2>&1 | tee "$DEMO/logs/prepare-deps.log"
 ok "cache ready: $(du -sh "$DEMO/m2" | cut -f1) (acceptance failures here are expected: the fixture still has its bugs)"
 rm -rf "$prep"

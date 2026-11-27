@@ -50,4 +50,6 @@ jobs:
         if: always()
         with:
           name: restricted-verification-reports
-          path: mcp-server/target/surefire-reports/
+          path: |
+            mcp-server/target/surefire-reports/
+            .demo/logs/prepare-deps.log
