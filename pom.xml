@@ -30,7 +30,7 @@
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
         <quarkus.platform.version>4.0.1</quarkus.platform.version>
         <surefire-plugin.version>3.6.1</surefire-plugin.version>
-        <java-diff-utils.version>4.15</java-diff-utils.version>
+        <java-diff-utils.version>4.18</java-diff-utils.version>
         <skipITs>false</skipITs>
     </properties>
 
