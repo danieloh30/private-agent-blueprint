@@ -95,7 +95,7 @@ BLUEPRINT_MODEL_NAME=rits/zai-org/glm-5-3
 | `blueprint.policy.write-allow` | `src/main/java/**,src/test/java/**,src/main/resources/templates/**` | Paths a proposal may target |
 | `blueprint.policy.protected-paths` | secrets, keys, `.git`, `.mvn`, `mvnw` | Always denied; checked first |
 | `blueprint.leakage.mode` | `REDACT` | `REDACT` or `BLOCK` for tool output |
-| `blueprint.leakage.canaries` | `JFOKUS-CANARY-7f3a9c2e-DO-NOT-SHARE` | Synthetic canary values |
+| `blueprint.leakage.canaries` | `DEMO-CANARY-7f3a9c2e-DO-NOT-SHARE` | Synthetic canary values |
 | `blueprint.leakage.restricted-marker` | `AGENT-RESTRICTED` | Content with this marker is always blocked |
 | `blueprint.approval.proposal-ttl` / `approval-ttl` | `15m` / `5m` | Approval lifetime |
 | `blueprint.sandbox.engine` / `image` | `podman` / `maven:3.9-eclipse-temurin-25` | Restricted execution |

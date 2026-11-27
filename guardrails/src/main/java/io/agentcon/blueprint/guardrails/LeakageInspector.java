@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
  */
 public final class LeakageInspector {
 
-    public static final String DEFAULT_CANARY = "JFOKUS-CANARY-7f3a9c2e-DO-NOT-SHARE";
+    public static final String DEFAULT_CANARY = "DEMO-CANARY-7f3a9c2e-DO-NOT-SHARE";
     public static final String DEFAULT_MARKER = "AGENT-RESTRICTED";
 
     public enum Mode { REDACT, BLOCK }

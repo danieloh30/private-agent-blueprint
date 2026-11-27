@@ -35,7 +35,7 @@ class LeakageInspectorTest {
     @Test
     void detectsRepresentativeSecretPatterns() {
         String text = """
-                aws_key_id=AKIAJFOKUSDEMO00FAKE
+                aws_key_id=AKIADEMOEXAMPLE0FAKE
                 token ghp_abcdefghijklmnopqrstuvwxyz0123456789AB
                 gateway key sk-SYNTHETICabcdefghijklmnop0123
                 db.password = SyntheticPassw0rd!
@@ -48,7 +48,7 @@ class LeakageInspectorTest {
         var rules = r.findings().stream().map(LeakageInspector.Finding::rule).toList();
         assertTrue(rules.containsAll(List.of("aws-access-key-id", "api-key-sk", "github-token", "credential-assignment",
                 "bearer-token", "private-key")), rules.toString());
-        assertFalse(r.text().contains("AKIAJFOKUSDEMO00FAKE"));
+        assertFalse(r.text().contains("AKIADEMOEXAMPLE0FAKE"));
         assertFalse(r.text().contains("SyntheticPassw0rd"));
         assertFalse(r.text().contains("MIIsynthetic"));
     }
