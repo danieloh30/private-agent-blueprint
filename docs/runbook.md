@@ -133,7 +133,7 @@ and policy path.
 ## D. Approve and verify (2.5 min)
 
 1. Review the RpsResource diff aloud: one line becomes a `throw new WebApplicationException(Response.status(400)…)`.
-2. Click **Approve and apply this diff** on both proposals. **Observe:** `Human approved p-…` (ALLOW
+2. Click **Approve and apply to workspace** on both proposals (the agent's disposable copy only; the arcade changes when you promote). **Observe:** `Human approved p-…` (ALLOW
    `approval.granted`) then `apply_patch (after human approval)` **ALLOW `write.approved`**; states become APPLIED.
 3. Click **Acceptance: RPS**. **Observe** (about 15 s): **`PASSED: 9 tests, 0 failures`**.
 4. Optional: **Unit tests**: `PASSED: 18 tests` (the agent updated the test that encoded the bug).

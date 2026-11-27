@@ -33,6 +33,7 @@
   .step.done .num { background: var(--allow); color: #fff; }
   .step.done .num::after { content: "✓"; }
   .step.done .num span { display: none; }
+  .step.skipped { border-style: dashed; color: var(--muted); background: transparent; }
   #flow .spacer { flex: 1; }
   #flow .tool { font-size: 14px; padding: 5px 10px; margin: 0; }
   #next.ready { border-color: var(--accent); color: var(--accent); font-weight: 650; animation: nudge 1.6s ease-in-out infinite; }
@@ -255,7 +256,7 @@ async function api(path, opts = {}) {
 // ---------- Demo flow and insights ----------
 function renderSteps() {
   $('#steps').innerHTML = STEPS.map((s, i) =>
-    `<button class="step${i === flow.current ? ' current' : ''}${flow.done.has(s.id) ? ' done' : ''}" data-step="${i}">`
+    `<button class="step${i === flow.current ? ' current' : ''}${flow.done.has(s.id) ? ' done' : (i < flow.current ? ' skipped' : '')}" data-step="${i}"${!flow.done.has(s.id) && i < flow.current ? ' title="Skipped (optional): click to go back"' : ''}>`
     + `<span class="num"><span>${s.n}</span></span>${esc(s.label)}</button>`).join('');
   $$('[data-step]').forEach(b => b.onclick = () => goStep(+b.dataset.step));
   const cur = STEPS[flow.current];
@@ -268,9 +269,25 @@ function spotlight() {
   $$('.spot').forEach(e => e.classList.remove('spot'));
   (STEPS[flow.current]?.targets || []).forEach(sel => $$(sel).forEach(e => e.classList.add('spot')));
 }
-function goStep(i) {
+function setStep(i) {
   flow.current = Math.max(0, Math.min(STEPS.length - 1, i)); store('step', flow.current);
-  renderSteps(); showInsight(STEPS[flow.current].insight);
+  renderSteps();
+}
+function goStep(i) { setStep(i); showInsight(STEPS[flow.current].insight); }
+// Which demo step an action belongs to, so the flow bar follows what the presenter actually did.
+let appliedInSession = false;
+function stepFor(key) {
+  const [kind, name] = key.split(':');
+  if (kind === 'step') return null;
+  if (kind === 'probe') return 'bad';
+  if (kind === 'preset') return { primary: 'ask', followup: 'ask', backup: 'scramble' }[name] || 'bad';
+  if (kind === 'action') return name === 'reset' ? (flow.done.has('approve') ? 'scramble' : null) : 'approve';
+  if (kind === 'verify') {
+    if (name.includes('scramble')) return 'scramble';
+    if (name === 'unit-tests' || name.startsWith('after')) return 'approve';
+    return appliedInSession ? 'approve' : 'baseline';
+  }
+  return null;
 }
 function markDone(id) {
   if (flow.done.has(id)) return;
@@ -283,6 +300,8 @@ function resolve(key) {
 }
 function showInsight(key) {
   const ins = resolve(key); if (!ins) return;
+  const sid = stepFor(key), idx = STEPS.findIndex(s => s.id === sid);
+  if (idx >= 0 && idx !== flow.current) setStep(idx);
   $('#insight').innerHTML = insightHtml(ins, STEPS[flow.current]);
   const copy = $('#copy-cmd');
   if (copy) copy.onclick = async () => {
@@ -406,7 +425,8 @@ function renderEvent(e, live) {
     const ok = v === 'ALLOW';
     $('#verify-box').innerHTML = `<div class="big ${ok ? 'ok' : 'bad-t'}">${esc(t)}</div><pre>${esc(e.detail)}</pre>`;
     history.push({ ok, title: t.replace(/\s*\(\d+ ms\)$/, ''), time: e.time }); renderHistory();
-    if (t.startsWith('acceptance-rps:')) { markDone('baseline'); if (ok) markDone('approve'); }
+    // Only a failing run counts as the baseline; a passing one is the proof after an approved fix.
+    if (t.startsWith('acceptance-rps:')) markDone(ok ? 'approve' : 'baseline');
     if (t.startsWith('acceptance-scramble:') && ok) markDone('scramble');
   }
   if (e.kind === 'TOOL' && t.startsWith('propose_patch')) markDone('ask');
@@ -425,7 +445,7 @@ async function pollOnce() {
     if (s.id !== sessionId) {
       const first = sessionId === null;
       sessionId = s.id; after = 0; $('#trace').innerHTML = emptyTrace();
-      if (!first) { history.length = 0; renderHistory(); }
+      if (!first) { history.length = 0; renderHistory(); appliedInSession = false; }
       s = await api('/api/session?after=0');
     }
     const live = after > 0;
@@ -445,6 +465,7 @@ function emptyTrace() {
 // ---------- Proposals ----------
 async function loadProposals() {
   const ps = await api('/api/proposals');
+  if (Array.isArray(ps)) appliedInSession = ps.some(p => p.state === 'APPLIED');
   if (!Array.isArray(ps) || ps.length === 0) {
     $('#proposals').innerHTML = '<div class="empty">No proposals yet. The agent can only propose; you approve each exact diff here.</div>';
     spotlight(); return;
@@ -454,13 +475,13 @@ async function loadProposals() {
       <div class="head"><b>${esc(p.id)}</b><span class="rule">${esc(p.path)}</span><span class="state ${p.state}">${p.state}</span></div>
       <div class="binding">Approval binds to: patch sha256 <b>${esc(p.patchSha256.slice(0,12))}…</b> · workspace <b>${esc(p.workspaceId)}</b> · single use · expires <b>${esc(p.expiresAt.slice(11,19))} UTC</b></div>
       <pre class="diff">${diffHtml(p.diff)}</pre>
-      ${p.state === 'PENDING' ? `<button class="approve" data-approve="${esc(p.id)}" data-sha="${esc(p.patchSha256)}">Approve and apply this diff</button>
+      ${p.state === 'PENDING' ? `<button class="approve" data-approve="${esc(p.id)}" data-sha="${esc(p.patchSha256)}" title="Applies this exact diff to the agent's disposable workspace. Your arcade changes only when you promote.">Approve and apply to workspace</button>
         <button class="reject" data-reject="${esc(p.id)}">Reject</button>` : ''}
     </div>`).join('');
   $$('[data-approve]').forEach(b => b.onclick = async () => {
     b.disabled = true;
     const r = await api(`/api/proposals/${b.dataset.approve}/approve`, { method: 'POST', body: JSON.stringify({ patchSha256: b.dataset.sha }) });
-    if (r && r.ok !== false) showInsight('action:approve');
+    if (r && r.ok !== false) { appliedInSession = true; showInsight('action:approve'); }
     loadProposals(); poll();
   });
   $$('[data-reject]').forEach(b => b.onclick = async () => {
@@ -485,8 +506,10 @@ $$('[data-probe]').forEach(b => b.onclick = async () => {
   await api('/api/probes/' + b.dataset.probe, { method: 'POST' }); b.disabled = false; poll(); loadProposals(); });
 $$('[data-verify]').forEach(b => b.onclick = async () => {
   const task = b.dataset.verify, t0 = Date.now();
+  // After an approved change, the same tests are the proof, not the baseline.
+  const short = task.replace('acceptance-', ''), afterFix = appliedInSession && task.startsWith('acceptance-');
   $$('[data-verify]').forEach(x => x.disabled = true);
-  showInsight('verify:' + task);
+  showInsight(afterFix ? 'verify:after-' + short : 'verify:' + task);
   const tick = () => { $('#verify-box').innerHTML = `<div class="big busy">Running ${esc(task)} in the sandbox… ${Math.round((Date.now() - t0) / 1000)} s</div>`
     + '<div class="note">Isolated container: no network, read-only filesystem, CPU, memory and time limits.</div>'; };
   tick(); const timer = setInterval(tick, 1000);
@@ -494,7 +517,8 @@ $$('[data-verify]').forEach(b => b.onclick = async () => {
   const r = await api('/api/verify/' + task, { method: 'POST' });
   clearInterval(timer); $$('[data-verify]').forEach(x => x.disabled = false);
   await poll();
-  if (r && r.status && INSIGHTS['verify:' + task + ':' + r.status]) showInsight('verify:' + task + ':' + r.status);
+  const key = afterFix && r && r.status === 'FAILED' ? 'verify:after-' + short + ':FAILED' : 'verify:' + task + ':' + (r && r.status);
+  if (INSIGHTS[key]) showInsight(key);
 });
 $('#reset').onclick = async () => {
   await api('/api/reset', { method: 'POST' });

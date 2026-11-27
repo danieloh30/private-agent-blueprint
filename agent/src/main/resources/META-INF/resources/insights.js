@@ -64,10 +64,30 @@ window.INSIGHTS = {
     points: [
       'The same 9 tests that failed now pass: the bug is fixed ==and== valid moves still play a round.',
       'The agent couldn\'t edit these tests, so it couldn\'t make them pass by weakening them.',
-      'Still only in the ==disposable workspace==. Your working tree is untouched until you promote.',
+      'Still only in the ==disposable workspace==. Your ==arcade on :8080 is unchanged== until you promote.',
     ],
     say: 'Same tests, same sandbox, now green. The agent didn\'t grade its own homework.',
   },
+  'verify:after-rps': {
+    title: 'Same tests, after the fix',
+    headline: 'The ==same tests== that failed now run against the ==approved change==, in the ==same sandbox==.',
+    points: [
+      'The agent never saw these tests, so it couldn\'t tailor the fix to them.',
+      'Only a ++PASSED++ result is worth promoting to your code.',
+    ],
+    say: 'Same tests, same sandbox. Let\'s see if the fix holds.',
+  },
+  'verify:after-scramble': { ref: 'verify:after-rps' },
+  'verify:after-rps:FAILED': {
+    title: 'The fix didn\'t pass',
+    headline: '!!FAILED!! after the fix: ==nothing reaches your code==.',
+    points: [
+      'Reject the diff or ask again with more detail. The ==tests decide==, not the agent.',
+      'Your arcade is untouched: the change lives only in the ==disposable workspace==.',
+    ],
+    say: 'This is why the tests are mine: a wrong fix stops here.',
+  },
+  'verify:after-scramble:FAILED': { ref: 'verify:after-rps:FAILED' },
   'verify:acceptance-scramble': {
     title: 'Scramble baseline',
     headline: 'Same idea, second bug: ==tests I own== define ==done==.',
@@ -236,6 +256,7 @@ window.INSIGHTS = {
     headline: 'Approval is ==bound to this diff==: patch hash, file hash, workspace, ==single use==, ==expiry==.',
     points: [
       'Read the diff first: one line becomes a `WebApplicationException` with status 400.',
+      'Two gates: ==approve== lets the agent apply it to its ==disposable copy==; ==promote== (step 5) lets it reach ==your code==.',
       'Then run ==Acceptance: RPS== again: same tests, same sandbox.',
     ],
     say: 'I approve exactly this change, once. If the diff or the file changes, the approval no longer matches.',
@@ -244,10 +265,11 @@ window.INSIGHTS = {
     title: 'Approved, applied once',
     headline: '`apply_patch` gets ++ALLOW++ `write.approved`: ==exactly this diff==, ==once==.',
     points: [
+      'Applied only to the agent\'s ==disposable workspace==. Your ==arcade on :8080 is unchanged== until you promote.',
       'If the patch or the base file changed, the hashes wouldn\'t match and the write would be refused.',
-      'Applied only to the ==disposable workspace==. Next: ==Acceptance: RPS==.',
+      'Next: ==Acceptance: RPS== proves the change before it can reach your code.',
     ],
-    say: 'Approved and applied, once. Now the tests I own.',
+    say: 'Approving lets the agent apply this exact diff to its copy, so my tests can prove it. Nothing touches my code until I promote it.',
   },
   'action:reject': {
     title: 'Rejected',

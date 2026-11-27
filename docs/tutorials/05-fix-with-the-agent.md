@@ -108,7 +108,7 @@ DeepSeek refuses the `curl` part on its own and runs only `unit-tests`; the prob
 
 1. Read the RPS diff: one line becomes `throw new WebApplicationException(Response.status(400)…)`. Each proposal
    shows what the approval binds to: patch hash, workspace, single use and expiry.
-2. Click **Approve and apply this diff** on both proposals. The trace shows `approval.granted`, then
+2. Click **Approve and apply to workspace** on both proposals. This applies each diff to the agent's disposable copy only; your arcade on :8080 changes when you promote in step 5. The trace shows `approval.granted`, then
    `apply_patch (after human approval)` with **ALLOW `write.approved`**.
 3. Click **Acceptance: RPS**: **`PASSED: 9 tests, 0 failures`**. The verification history shows FAILED, then PASSED.
 
