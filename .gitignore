@@ -46,3 +46,6 @@ nb-configuration.xml
 
 # Disposable demo state (runs, logs, evidence, tokens, Maven cache)
 .demo/
+
+# Python script-test bytecode
+__pycache__/

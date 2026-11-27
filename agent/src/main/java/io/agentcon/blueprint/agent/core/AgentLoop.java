@@ -58,6 +58,18 @@ public final class AgentLoop {
     }
 
     public Outcome run(AgentSession session, String userText) {
+        RunBudget budget = new RunBudget(limits.maxRunTime(), session);
+        try {
+            return runControlled(session, userText, budget);
+        } catch (RunBudget.Stopped stopped) {
+            session.emit(Kind.LIMIT, stopped.reason.equals("cancelled") ? "Run stopped by presenter" : "Time limit reached",
+                    "Planning stopped. An already dispatched server operation may still finish; inspect the trace and workspace before continuing.",
+                    "DENY", stopped.reason.equals("cancelled") ? "run.cancelled" : "limit.time", 0);
+            return finish(session.history(), new Outcome(null, budget.steps, budget.toolCalls, stopped.reason));
+        }
+    }
+
+    private Outcome runControlled(AgentSession session, String userText, RunBudget budget) {
         long started = clock.millis();
         long deadline = started + limits.maxRunTime().toMillis();
 
@@ -82,7 +94,9 @@ public final class AgentLoop {
 
         List<ToolSpecification> specs;
         try {
-            specs = tools.listTools().stream().filter(t -> allowedTools.contains(t.name())).toList();
+            specs = budget.call(tools::listTools).stream().filter(t -> allowedTools.contains(t.name())).toList();
+        } catch (RunBudget.Stopped stopped) {
+            throw stopped;
         } catch (RuntimeException e) {
             session.emit(Kind.ERROR, "MCP server unavailable", inspector.redactForLog(String.valueOf(e.getMessage())));
             return new Outcome(null, 0, 0, "mcp-unavailable");
@@ -105,6 +119,7 @@ public final class AgentLoop {
                 return finish(history, new Outcome(null, steps, toolCalls, "step-limit"));
             }
             steps++;
+            budget.steps = steps;
 
             List<ChatMessage> request = new ArrayList<>(history.size() + 1);
             request.add(SystemMessage.from(systemPrompt));
@@ -112,7 +127,9 @@ public final class AgentLoop {
             long t0 = clock.millis();
             ChatResponse response;
             try {
-                response = model.chat(ChatRequest.builder().messages(request).toolSpecifications(specs).build());
+                response = budget.call(() -> model.chat(ChatRequest.builder().messages(request).toolSpecifications(specs).build()));
+            } catch (RunBudget.Stopped stopped) {
+                throw stopped;
             } catch (RuntimeException e) {
                 session.emit(Kind.ERROR, "Model call failed", inspector.redactForLog(rootMessage(e)), "DENY", "model.error",
                         clock.millis() - t0);
@@ -143,7 +160,8 @@ public final class AgentLoop {
                         if ("propose_patch".equals(call.name())) {
                             proposals++;
                         }
-                        result = executeTool(session, call);
+                        budget.toolCalls = toolCalls;
+                        result = executeTool(session, call, budget);
                     }
                     history.add(ToolExecutionResultMessage.from(call, wrapUntrusted(call.name(), result)));
                 }
@@ -166,7 +184,8 @@ public final class AgentLoop {
                 if ("propose_patch".equals(recovered.name())) {
                     proposals++;
                 }
-                String result = executeTool(session, recovered);
+                budget.toolCalls = toolCalls;
+                String result = executeTool(session, recovered, budget);
                 history.add(ToolExecutionResultMessage.from(recovered, wrapUntrusted(recovered.name(), result)));
                 continue;
             }
@@ -191,7 +210,7 @@ public final class AgentLoop {
         }
     }
 
-    private String executeTool(AgentSession session, ToolExecutionRequest call) {
+    private String executeTool(AgentSession session, ToolExecutionRequest call, RunBudget budget) {
         String args = call.arguments() == null ? "{}" : call.arguments();
         String shownArgs = inspector.redactForLog(args.length() > 600 ? args.substring(0, 600) + "..." : args);
         if (!allowedTools.contains(call.name())) {
@@ -202,7 +221,9 @@ public final class AgentLoop {
         long t0 = clock.millis();
         ToolGateway.Outcome outcome;
         try {
-            outcome = tools.execute(call.id(), call.name(), args);
+            outcome = budget.call(() -> tools.execute(call.id(), call.name(), args));
+        } catch (RunBudget.Stopped stopped) {
+            throw stopped;
         } catch (RuntimeException e) {
             outcome = new ToolGateway.Outcome(true, "[policy] DENY tool.transport-error: " + rootMessage(e));
         }

@@ -297,7 +297,7 @@ public class CodingTools {
     /** Uniform decision reporting and auditing for every tool. */
     private ToolResponse guarded(String tool, Map<String, String> args, Action action) {
         String actor = config.security().agentIdentity();
-        try {
+        try (var ignored = workspaces.acquire()) {
             Outcome o = action.run();
             Map<String, Object> details = new LinkedHashMap<>(o.details());
             details.put("args", args.toString());

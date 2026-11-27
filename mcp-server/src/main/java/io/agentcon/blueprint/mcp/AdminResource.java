@@ -84,19 +84,21 @@ public class AdminResource {
     @POST
     @Path("/proposals/{id}/approve")
     public Response approve(@PathParam("id") String id, String body) {
-        JsonObject request = body == null || body.isBlank() ? null : new JsonObject(body);
-        String approver = request == null ? "presenter" : request.getString("approver", "presenter");
-        String presented = request == null ? null : request.getString("patchSha256");
-        try {
-            ApprovalStore.Proposal p = approvals.approve(id, presented, approver);
-            audit.record(approver, "approve", Decision.allow("approval.granted",
-                    "Approved " + id + " for " + p.path() + " (expires " + p.expiresAt() + ")"),
-                    Map.of("proposal", id, "patchSha256", p.patchSha256()));
-            return Response.ok(new JsonObject(view(p)).encode()).build();
-        } catch (PolicyViolation v) {
-            audit.record(approver, "approve", v.decision(), Map.of("proposal", id));
-            return Response.status(409).entity(new JsonObject(Map.of("verdict", v.decision().verdict().name(),
-                    "rule", v.decision().rule(), "reason", v.decision().reason())).encode()).build();
+        try (var ignored = workspaces.acquire()) {
+            JsonObject request = body == null || body.isBlank() ? null : new JsonObject(body);
+            String approver = request == null ? "presenter" : request.getString("approver", "presenter");
+            String presented = request == null ? null : request.getString("patchSha256");
+            try {
+                ApprovalStore.Proposal p = approvals.approve(id, presented, approver);
+                audit.record(approver, "approve", Decision.allow("approval.granted",
+                        "Approved " + id + " for " + p.path() + " (expires " + p.expiresAt() + ")"),
+                        Map.of("proposal", id, "patchSha256", p.patchSha256()));
+                return Response.ok(new JsonObject(view(p)).encode()).build();
+            } catch (PolicyViolation v) {
+                audit.record(approver, "approve", v.decision(), Map.of("proposal", id));
+                return Response.status(409).entity(new JsonObject(Map.of("verdict", v.decision().verdict().name(),
+                        "rule", v.decision().rule(), "reason", v.decision().reason())).encode()).build();
+            }
         }
     }
 
@@ -129,33 +131,43 @@ public class AdminResource {
     @POST
     @Path("/verify/{task}")
     public Response verify(@PathParam("task") String task) {
-        Decision d = policy.decideTask(task);
-        if (!d.allowed()) {
-            audit.record("presenter", "verify", d, Map.of("task", task));
-            return Response.status(403).entity(new JsonObject(Map.of("rule", d.rule(), "reason", d.reason())).encode()).build();
-        }
-        SandboxRunner.Result r = sandbox.run(task, workspaces.current());
-        audit.record("presenter", "verify:" + task, d, Map.of("status", r.status().name(), "tests", r.testsRun(),
-                "failures", r.failures() + r.errors(), "durationMs", r.durationMs()));
-        if (r.status() == SandboxRunner.Status.PASSED && task.startsWith("acceptance-")) {
-            try {
-                verifiedDiffs.computeIfAbsent(workspaces.current().id(), k -> ConcurrentHashMap.newKeySet())
-                        .add(Hashing.sha256(tools.workspaceDiff()));
-            } catch (java.io.IOException e) {
-                // Not recorded as verified: promotion will ask for another acceptance run.
+        try (var ignored = workspaces.acquire()) {
+            Decision d = policy.decideTask(task);
+            if (!d.allowed()) {
+                audit.record("presenter", "verify", d, Map.of("task", task));
+                return Response.status(403).entity(new JsonObject(Map.of("rule", d.rule(), "reason", d.reason())).encode()).build();
             }
+            WorkspaceManager.Run run = workspaces.current();
+            final String testedDiff;
+            try {
+                testedDiff = Hashing.sha256(tools.workspaceDiff());
+            } catch (java.io.IOException e) {
+                return Response.status(409).entity(new JsonObject().put("rule", "verify.snapshot-unavailable").encode()).build();
+            }
+            SandboxRunner.Result r = sandbox.run(task, run);
+            audit.record("presenter", "verify:" + task, d, Map.of("status", r.status().name(), "tests", r.testsRun(),
+                    "failures", r.failures() + r.errors(), "durationMs", r.durationMs()));
+            if (r.status() == SandboxRunner.Status.PASSED && task.startsWith("acceptance-")) {
+                try {
+                    if (run.id().equals(workspaces.current().id()) && testedDiff.equals(Hashing.sha256(tools.workspaceDiff()))) {
+                        verifiedDiffs.computeIfAbsent(run.id(), k -> ConcurrentHashMap.newKeySet()).add(testedDiff);
+                    }
+                } catch (java.io.IOException e) {
+                    // Not recorded as verified: promotion will ask for another acceptance run.
+                }
+            }
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("task", r.task());
+            m.put("status", r.status().name());
+            m.put("headline", r.headline());
+            m.put("tests", r.testsRun());
+            m.put("failures", r.failures());
+            m.put("errors", r.errors());
+            m.put("durationMs", r.durationMs());
+            m.put("output", inspector.redactForLog(r.outputTail()));
+            m.put("controls", r.controls());
+            return Response.ok(new JsonObject(m).encode()).build();
         }
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("task", r.task());
-        m.put("status", r.status().name());
-        m.put("headline", r.headline());
-        m.put("tests", r.testsRun());
-        m.put("failures", r.failures());
-        m.put("errors", r.errors());
-        m.put("durationMs", r.durationMs());
-        m.put("output", inspector.redactForLog(r.outputTail()));
-        m.put("controls", r.controls());
-        return Response.ok(new JsonObject(m).encode()).build();
     }
 
     /**
@@ -186,42 +198,44 @@ public class AdminResource {
     @POST
     @Path("/promote")
     public Response promote(String body) throws Exception {
-        WorkspaceManager.Run run = workspaces.current();
-        String presented = body == null || body.isBlank() ? null : new JsonObject(body).getString("diffSha256");
-        String diff = tools.workspaceDiff();
-        String sha = Hashing.sha256(diff);
-        Decision refused = null;
-        if (!config.promote().enabled()) {
-            refused = Decision.deny("promote.disabled", "Promotion from the console is turned off (blueprint.promote.enabled)");
-        } else if (diff.isBlank()) {
-            refused = Decision.deny("promote.nothing", "No approved changes in workspace " + run.id());
-        } else if (!sha.equals(presented)) {
-            refused = Decision.deny("promote.stale", "The workspace changed since you reviewed it; review the changes again");
-        } else if (!verifiedDiffs.getOrDefault(run.id(), Set.of()).contains(sha)) {
-            refused = Decision.deny("promote.needs-passing-acceptance",
-                    "Run an acceptance check on these exact changes first; only a PASSED result can be promoted");
+        try (var ignored = workspaces.acquire()) {
+            WorkspaceManager.Run run = workspaces.current();
+            String presented = body == null || body.isBlank() ? null : new JsonObject(body).getString("diffSha256");
+            String diff = tools.workspaceDiff();
+            String sha = Hashing.sha256(diff);
+            Decision refused = null;
+            if (!config.promote().enabled()) {
+                refused = Decision.deny("promote.disabled", "Promotion from the console is turned off (blueprint.promote.enabled)");
+            } else if (diff.isBlank()) {
+                refused = Decision.deny("promote.nothing", "No approved changes in workspace " + run.id());
+            } else if (!sha.equals(presented)) {
+                refused = Decision.deny("promote.stale", "The workspace changed since you reviewed it; review the changes again");
+            } else if (!verifiedDiffs.getOrDefault(run.id(), Set.of()).contains(sha)) {
+                refused = Decision.deny("promote.needs-passing-acceptance",
+                        "Run an acceptance check on these exact changes first; only a PASSED result can be promoted");
+            }
+            if (refused != null) {
+                audit.record("presenter", "promote", refused, Map.of("workspace", run.id()));
+                return Response.status(409).entity(new JsonObject(Map.of("verdict", "DENY", "rule", refused.rule(),
+                        "reason", refused.reason())).encode()).build();
+            }
+            List<Promotion.Item> plan = Promotion.plan(run.workspace(), run.baseline(), promoteTarget(), tools.changedFiles());
+            List<String> copied = Promotion.apply(run.workspace(), promoteTarget(), plan);
+            List<String> conflicts = plan.stream().filter(i -> i.status() == Promotion.Status.CONFLICT).map(Promotion.Item::path).toList();
+            List<String> already = plan.stream().filter(i -> i.status() == Promotion.Status.ALREADY_PROMOTED).map(Promotion.Item::path).toList();
+            Decision done = Decision.allow("promote.copied", "Promoted " + copied.size() + " file(s) from " + run.id()
+                    + (conflicts.isEmpty() ? "" : "; not overwritten (changed locally): " + conflicts));
+            audit.record("presenter", "promote", done, Map.of("workspace", run.id(), "diffSha256", sha,
+                    "files", String.join(",", copied)));
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("verdict", "ALLOW");
+            m.put("rule", done.rule());
+            m.put("reason", done.reason());
+            m.put("promoted", copied);
+            m.put("alreadyPromoted", already);
+            m.put("conflicts", conflicts);
+            return Response.ok(new JsonObject(m).encode()).build();
         }
-        if (refused != null) {
-            audit.record("presenter", "promote", refused, Map.of("workspace", run.id()));
-            return Response.status(409).entity(new JsonObject(Map.of("verdict", "DENY", "rule", refused.rule(),
-                    "reason", refused.reason())).encode()).build();
-        }
-        List<Promotion.Item> plan = Promotion.plan(run.workspace(), run.baseline(), promoteTarget(), tools.changedFiles());
-        List<String> copied = Promotion.apply(run.workspace(), promoteTarget(), plan);
-        List<String> conflicts = plan.stream().filter(i -> i.status() == Promotion.Status.CONFLICT).map(Promotion.Item::path).toList();
-        List<String> already = plan.stream().filter(i -> i.status() == Promotion.Status.ALREADY_PROMOTED).map(Promotion.Item::path).toList();
-        Decision done = Decision.allow("promote.copied", "Promoted " + copied.size() + " file(s) from " + run.id()
-                + (conflicts.isEmpty() ? "" : "; not overwritten (changed locally): " + conflicts));
-        audit.record("presenter", "promote", done, Map.of("workspace", run.id(), "diffSha256", sha,
-                "files", String.join(",", copied)));
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("verdict", "ALLOW");
-        m.put("rule", done.rule());
-        m.put("reason", done.reason());
-        m.put("promoted", copied);
-        m.put("alreadyPromoted", already);
-        m.put("conflicts", conflicts);
-        return Response.ok(new JsonObject(m).encode()).build();
     }
 
     private java.nio.file.Path promoteTarget() {
@@ -232,18 +246,20 @@ public class AdminResource {
     @POST
     @Path("/workspace/reset")
     public String reset() {
-        verifiedDiffs.clear();
-        approvals.clear();
-        audit.clear();
-        WorkspaceManager.Run run = workspaces.createRun();
-        audit.record("presenter", "workspace-reset", Decision.allow("workspace.fresh", "New disposable workspace " + run.id()), Map.of());
-        long files;
-        try (var walk = java.nio.file.Files.walk(run.workspace())) {
-            files = walk.filter(p -> java.nio.file.Files.isRegularFile(p, java.nio.file.LinkOption.NOFOLLOW_LINKS)).count();
-        } catch (java.io.IOException e) {
-            files = -1;
+        try (var ignored = workspaces.acquire()) {
+            verifiedDiffs.clear();
+            approvals.clear();
+            audit.clear();
+            WorkspaceManager.Run run = workspaces.createRun();
+            audit.record("presenter", "workspace-reset", Decision.allow("workspace.fresh", "New disposable workspace " + run.id()), Map.of());
+            long files;
+            try (var walk = java.nio.file.Files.walk(run.workspace())) {
+                files = walk.filter(p -> java.nio.file.Files.isRegularFile(p, java.nio.file.LinkOption.NOFOLLOW_LINKS)).count();
+            } catch (java.io.IOException e) {
+                files = -1;
+            }
+            return new JsonObject().put("workspaceId", run.id()).put("files", files).encode();
         }
-        return new JsonObject().put("workspaceId", run.id()).put("files", files).encode();
     }
 
     private Map<String, Object> view(ApprovalStore.Proposal p) {

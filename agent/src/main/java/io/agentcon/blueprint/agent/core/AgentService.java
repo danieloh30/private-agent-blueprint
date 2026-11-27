@@ -80,7 +80,9 @@ public class AgentService {
         if (!session.running().compareAndSet(false, true)) {
             return false;
         }
+        session.prepareRun();
         Thread.ofVirtual().name("agent-" + session.id()).start(() -> {
+            session.bindWorker();
             long t0 = System.currentTimeMillis();
             try {
                 AgentLoop.Outcome o = loop().run(session, text);
@@ -89,6 +91,7 @@ public class AgentService {
             } catch (RuntimeException e) {
                 session.emit(Kind.ERROR, "Agent error", inspector.redactForLog(String.valueOf(e.getMessage())));
             } finally {
+                session.releaseWorker();
                 session.running().set(false);
             }
         });
@@ -100,9 +103,12 @@ public class AgentService {
         if (!session.running().compareAndSet(false, true)) {
             throw new IllegalStateException("already running");
         }
+        session.prepareRun();
+        session.bindWorker();
         try {
             return loop().run(session, text);
         } finally {
+            session.releaseWorker();
             session.running().set(false);
         }
     }
@@ -288,8 +294,20 @@ public class AgentService {
                         + "or absence of network leakage; see docs/threat-model.md.");
     }
 
+    public JsonObject stopRun() {
+        AgentSession s = current();
+        if (s.running().get()) s.requestStop();
+        return new JsonObject().put("stopRequested", s.running().get())
+                .put("note", "Already dispatched server operations may still finish; review the trace before continuing.");
+    }
+
     public JsonObject resetWorkspace() {
+        if (current().running().get()) {
+            return new JsonObject().put("ok", false).put("rule", "run.busy")
+                    .put("reason", "Stop the active run before resetting its workspace");
+        }
         AdminClient.Reply r = admin.post("/workspace/reset", new JsonObject());
+        if (r.status() != 200) return r.json().put("ok", false);
         AgentSession s = newSession();
         JsonObject j = r.json();
         long files = j.getLong("files", -1L);

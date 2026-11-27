@@ -66,6 +66,12 @@ public class AgentResource {
         return Response.accepted(new JsonObject().put("accepted", true).encode()).build();
     }
 
+    @POST
+    @Path("/stop")
+    public String stop() {
+        return agent.stopRun().encode();
+    }
+
     @GET
     @Path("/proposals")
     public String proposals() {

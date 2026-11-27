@@ -52,7 +52,7 @@ for each change:
 that need protecting:
 
 - **Agents that run without a developer watching:** fixing CI failures, opening dependency-upgrade PRs, turning bug
-  reports into patches, nightly code-health tasks. Nobody approves each step, so the controls have to be built in.
+  reports into patches, nightly code-health tasks. The demo still requires explicit human approval before applying a patch and a separate promotion decision. Unattended deployment is a future adaptation requiring its own narrowly scoped approval policy.
 - **Regulated or sensitive codebases** (finance, healthcare, government, partner code under NDA), where auditors want
   evidence of what the agent could reach, what it was denied, and who approved each change.
 - **An internal coding-agent service for many teams:** one agent with central policy, instead of trusting each
@@ -115,7 +115,7 @@ More: [reset and troubleshooting](../troubleshooting.md) and the timed [presente
 
 ## Key takeaways
 
-- Both assistants fixed real bugs with the same private model.
+- Both assistants fixed real bugs with the same private model and comparable fixes.
 - Use general-purpose assistants to make developers faster; build a governed agent when the agent becomes part of
   your system.
 - The Java agent turns "trust the tool" into checks you can show: approvals, denials, redaction, sandboxed proof.

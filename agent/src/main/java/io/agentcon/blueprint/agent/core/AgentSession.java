@@ -18,6 +18,21 @@ public final class AgentSession {
     private final List<TraceEvent> events = new ArrayList<>();
     private final AtomicLong seq = new AtomicLong();
     private final AtomicBoolean running = new AtomicBoolean();
+    private final AtomicBoolean stopRequested = new AtomicBoolean();
+    private volatile Thread worker;
+
+    public boolean stopRequested() { return stopRequested.get(); }
+    public void prepareRun() { stopRequested.set(false); }
+    public void bindWorker() {
+        worker = Thread.currentThread();
+        if (stopRequested.get()) worker.interrupt();
+    }
+    public void releaseWorker() { worker = null; }
+    public void requestStop() {
+        stopRequested.set(true);
+        Thread active = worker;
+        if (active != null) active.interrupt();
+    }
 
     public AgentSession(String id) {
         this.id = id;

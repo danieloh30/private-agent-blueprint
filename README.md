@@ -197,3 +197,11 @@ Guides: [Quarkus MCP server](https://docs.quarkiverse.io/quarkus-mcp-server/dev/
 
 The arcade's own documentation (games, seeded bugs, prompts for other assistants) is in
 [arcade/README.md](arcade/README.md). `opencode.jsonc` configures OpenCode against the same enMaaS gateway.
+
+## Verification integrity and recovery
+
+Workspace operations share a server-side lease. Verification holds the lease from snapshot capture through the test result, so patches, resets and promotion cannot change the tested workspace concurrently. Passing acceptance is credited only to the captured run and diff. Competing requests return `workspace.busy` and can be retried. Console and terminal promotion use the same acceptance/hash/path checks; `--yes` skips only the terminal confirmation.
+
+The presenter can **Stop run** (`POST /api/stop`). A single wall-clock budget bounds discovery, model calls and tool-client waits. Already dispatched server actions may still complete: stopping is not rollback. Inspect the trace and workspace before another task. A fresh workspace is refused until the agent run has stopped.
+
+CI includes a separate real-container acceptance job that prepares offline dependencies and fails if the container suite is absent or skipped. Credential-dependent model checks remain opt-in. The general-purpose assistant comparison describes the supplied OpenCode configuration; both acts use comparable fixes, not an identical task. The governed demo still requires human patch approval and promotion.

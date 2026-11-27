@@ -200,6 +200,7 @@
     <textarea id="prompt" placeholder="Pick a demo prompt below, or ask the agent…"></textarea>
     <div class="row">
       <button class="primary" id="send">Send to agent</button>
+      <button id="stop-run" disabled>Stop run</button>
       <span class="note" id="run-state"></span>
     </div>
 
@@ -523,6 +524,7 @@ async function pollOnce() {
     if (s.running && !running) runStart = Date.now();
     running = s.running;
     $('#send').disabled = running;
+    $('#stop-run').disabled = !running;
     const rs = $('#run-state');
     rs.className = 'note' + (running ? ' busy' : '');
     rs.textContent = running ? `agent working… ${Math.round((Date.now() - runStart) / 1000)} s` : '';
@@ -638,6 +640,12 @@ $('#send').onclick = async () => {
   await api('/api/ask', { method: 'POST', body: JSON.stringify({ text }) });
   poll();
 };
+$('#stop-run').onclick = async () => {
+  $('#stop-run').disabled = true;
+  const r = await api('/api/stop', { method: 'POST' });
+  toast(r.note);
+  poll();
+};
 $('#prompt').addEventListener('input', () => { delete $('#prompt').dataset.fromPreset; });
 $$('[data-probe]').forEach(b => b.onclick = async () => {
   b.disabled = true; showInsight('probe:' + b.dataset.probe); markUsed(`[data-probe="${b.dataset.probe}"]`);
@@ -673,7 +681,7 @@ async function newWorkspace(btn, busyText) {
   const r = await api('/api/reset', { method: 'POST' });
   btn.disabled = false; btn.textContent = label; btn.classList.remove('busy');
   if (!r || !r.workspaceId) {
-    toast('Could not create a fresh workspace: ' + esc((r && (r.error || r.raw)) || 'MCP server unreachable'), true);
+    toast('Could not create a fresh workspace: ' + esc((r && (r.reason || r.error || r.raw)) || 'MCP server unreachable'), true);
     return null;
   }
   $('#p-workspace').textContent = r.workspaceId;

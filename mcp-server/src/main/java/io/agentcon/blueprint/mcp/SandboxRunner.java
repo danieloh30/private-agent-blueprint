@@ -65,7 +65,7 @@ public class SandboxRunner {
     public List<String> controls() {
         ServerConfig.Sandbox s = config.sandbox();
         return List.of(
-                "engine=" + s.engine() + " (rootless container)",
+                "engine=" + s.engine() + " (restricted container)",
                 "network=none",
                 "cap-drop=ALL, no-new-privileges",
                 "read-only root filesystem, tmpfs /tmp",
@@ -81,18 +81,28 @@ public class SandboxRunner {
 
     /** Checks that the container engine exists and answers. Does not run workspace code. */
     public Availability availability() {
+        return availability(java.time.Duration.ofSeconds(20));
+    }
+
+    Availability availability(java.time.Duration timeout) {
         String engine = config.sandbox().engine().toLowerCase(Locale.ROOT);
         if (!SUPPORTED_ENGINES.contains(engine)) {
             return new Availability(false, "Unsupported engine '" + engine + "'; only podman or docker provide the required isolation");
         }
         try {
-            Process p = new ProcessBuilder(engineBinary(), "info", "--format", "{{.Host.OS}}")
+            String format = engine.equals("docker") ? "{{.OSType}}" : "{{.Host.OS}}";
+            Process p = new ProcessBuilder(engineBinary(), "info", "--format", format)
                     .redirectErrorStream(true).start();
-            String out = read(p.getInputStream(), 400);
-            if (!p.waitFor(20, TimeUnit.SECONDS)) {
+            TailReader output = new TailReader(p.getInputStream(), 400);
+            Thread reader = Thread.ofVirtual().start(output);
+            if (!p.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
+                p.descendants().forEach(ProcessHandle::destroyForcibly);
                 p.destroyForcibly();
+                reader.interrupt();
                 return new Availability(false, engine + " info timed out");
             }
+            reader.join(1000);
+            String out = output.text();
             return p.exitValue() == 0
                     ? new Availability(true, engine + " available (" + out.trim() + ")")
                     : new Availability(false, engine + " not usable: " + out.trim());

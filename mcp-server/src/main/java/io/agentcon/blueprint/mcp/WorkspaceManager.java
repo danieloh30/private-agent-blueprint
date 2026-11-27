@@ -16,6 +16,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
+import io.agentcon.blueprint.guardrails.PolicyViolation;
 import org.jboss.logging.Logger;
 
 /**
@@ -41,6 +43,26 @@ public class WorkspaceManager {
 
     private final ServerConfig config;
     private final AtomicReference<Run> current = new AtomicReference<>();
+    private final ReentrantLock operation = new ReentrantLock();
+
+    /** Serializes workspace operations, including the entire copy/test/credit transaction. */
+    public Lease acquire() {
+        if (!operation.tryLock()) {
+            throw PolicyViolation.deny("workspace.busy", "A workspace operation is in progress; wait for it to finish and retry");
+        }
+        return new Lease();
+    }
+
+    public final class Lease implements AutoCloseable {
+        private boolean closed;
+        private Lease() { }
+        public void close() {
+            if (!closed) {
+                closed = true;
+                operation.unlock();
+            }
+        }
+    }
 
     public WorkspaceManager(ServerConfig config) {
         this.config = config;
@@ -61,21 +83,23 @@ public class WorkspaceManager {
 
     /** Creates a fresh disposable run from the fixture and makes it current. Never touches the fixture. */
     public synchronized Run createRun() {
-        String id = "run-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS"));
-        Path runDir = config.stateDir().toAbsolutePath().normalize().resolve("runs").resolve(id);
-        Path workspace = runDir.resolve("workspace");
-        Path baseline = runDir.resolve("baseline");
-        try {
-            Files.createDirectories(runDir);
-            copyTree(config.fixtureDir(), workspace);
-            copyTree(config.fixtureDir(), baseline);
-            Files.writeString(config.stateDir().resolve("current-run"), id + System.lineSeparator());
-        } catch (IOException e) {
-            throw new UncheckedIOException("Cannot create workspace from " + config.fixtureDir(), e);
+        try (Lease ignored = acquire()) {
+            String id = "run-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS"));
+            Path runDir = config.stateDir().toAbsolutePath().normalize().resolve("runs").resolve(id);
+            Path workspace = runDir.resolve("workspace");
+            Path baseline = runDir.resolve("baseline");
+            try {
+                Files.createDirectories(runDir);
+                copyTree(config.fixtureDir(), workspace);
+                copyTree(config.fixtureDir(), baseline);
+                Files.writeString(config.stateDir().resolve("current-run"), id + System.lineSeparator());
+            } catch (IOException e) {
+                throw new UncheckedIOException("Cannot create workspace from " + config.fixtureDir(), e);
+            }
+            Run run = new Run(id, runDir, workspace, baseline);
+            current.set(run);
+            return run;
         }
-        Run run = new Run(id, runDir, workspace, baseline);
-        current.set(run);
-        return run;
     }
 
     /** Copies regular files and directories; skips build output, VCS data and every symlink. */

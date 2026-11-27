@@ -61,4 +61,18 @@ final class FakeEngineProfiles {
                     "blueprint.state-dir", "target/test-demo-missing");
         }
     }
+
+    /** Engine discovery itself hangs without closing stdout; availability must still time out. */
+    public static class HangingInfo implements QuarkusTestProfile {
+        @Override
+        public Map<String, String> getConfigOverrides() {
+            try {
+                Path script = Path.of("target/fake-engine-info-hang.sh").toAbsolutePath();
+                Files.writeString(script, "#!/bin/sh\nsleep 60\n");
+                Files.setPosixFilePermissions(script, PosixFilePermissions.fromString("rwxr-xr-x"));
+                return Map.of("blueprint.sandbox.engine-path", script.toString(),
+                        "blueprint.state-dir", "target/test-demo-info-hang");
+            } catch (IOException e) { throw new UncheckedIOException(e); }
+        }
+    }
 }

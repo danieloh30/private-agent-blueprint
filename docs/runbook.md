@@ -179,3 +179,9 @@ If time allows, or the primary task misbehaves: **Fresh workspace**, then preset
 | Messy state | **Fresh workspace** button, or `scripts/reset-demo.sh` then `scripts/start.sh enterprise`. |
 | Arcade still shows fixes from the last run | `git checkout arcade/` (dev mode reloads), then **Fresh workspace**. |
 | OpenCode slow at the venue | Choose **Ollama (local)** in OpenCode; give the 4B model explicit file paths. |
+
+## Interrupted or concurrent operations
+
+**Stop run** interrupts agent planning and in-flight model/client waits. A request already dispatched to the MCP server may still finish; inspect the trace and workspace before continuing. Reset is refused while an agent run is active. During sandbox verification, competing MCP operations, reset and promotion return `workspace.busy`; wait for completion and retry.
+
+The terminal `scripts/promote-workspace.sh` uses the same server endpoint as the console: a passing presenter acceptance check on the exact reviewed diff is required, including with `--yes`. Use **same model, comparable fixes, different controls** when comparing the two acts: they fix different games. OpenCode's permissions describe this demo configuration, not every possible OpenCode deployment.
