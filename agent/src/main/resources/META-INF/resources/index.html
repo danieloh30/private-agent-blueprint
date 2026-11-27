@@ -36,7 +36,8 @@
   .step.skipped { border-style: dashed; color: var(--muted); background: transparent; }
   #flow .spacer { flex: 1; }
   #flow .tool { font-size: 14px; padding: 5px 10px; margin: 0; }
-  #next.ready { border-color: var(--accent); color: var(--accent); font-weight: 650; animation: nudge 1.6s ease-in-out infinite; }
+  /* Current step done: Next turns solid so the presenter's eye goes there. */
+  #next.ready { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; animation: glow-blue 1.6s ease-in-out infinite; }
 
   /* Insight card */
   /* Main content on the left, Act 1 contrast and presenter cue on the right. The card never clips:
@@ -79,9 +80,12 @@
   button.reject { color: var(--deny); border-color: var(--deny); }
   button.bad { border-color: #e7b0ad; }
   button:disabled { opacity: .5; cursor: default; }
-  .spot { outline: 3px solid var(--accent); outline-offset: 2px; animation: pulse 1.6s ease-in-out infinite; }
-  @keyframes pulse { 50% { outline-color: rgba(11, 92, 173, .25); } }
-  @keyframes nudge { 50% { box-shadow: 0 0 0 4px rgba(11, 92, 173, .18); } }
+  /* Buttons for the current step: amber fill and a pulsing glow, readable from the back of a room.
+     Buttons that already carry a color (approve, promote, send) keep it, because their own rules are more
+     specific, and get the same amber glow. */
+  .spot { background: #ffd33d; border: 2px solid #b07d00; color: #1b1f24; font-weight: 700; animation: glow-amber 1.6s ease-in-out infinite; }
+  @keyframes glow-amber { 0%, 100% { box-shadow: 0 0 0 2px rgba(255, 196, 0, .55); } 50% { box-shadow: 0 0 0 7px rgba(255, 196, 0, .35); } }
+  @keyframes glow-blue { 0%, 100% { box-shadow: 0 0 0 2px rgba(11, 92, 173, .35); } 50% { box-shadow: 0 0 0 7px rgba(11, 92, 173, .22); } }
   @media (prefers-reduced-motion: reduce) { .spot, #next.ready { animation: none; } }
   .note { color: var(--muted); font-size: 15px; }
   .row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
