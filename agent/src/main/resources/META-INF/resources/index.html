@@ -89,6 +89,8 @@
   button.approve { background: var(--allow); color: #fff; border-color: var(--allow); }
   button.reject { color: var(--deny); border-color: var(--deny); }
   button.bad { border-color: #e7b0ad; }
+  button[data-preset][aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); animation: none; }
+  button[data-preset][aria-pressed="true"]::after { content: " · Selected"; font-weight: 700; color: var(--accent); }
   button:disabled { opacity: .5; cursor: default; }
   /* Buttons for the current step: amber fill and a pulsing glow, readable from the back of a room.
      Buttons that already carry a color (approve, promote, send) keep it, because their own rules are more
@@ -197,6 +199,7 @@
 <main>
   <section>
     <h2>Developer request</h2>
+    <div id="preset-selection" class="note" role="status" aria-live="polite"></div>
     <textarea id="prompt" placeholder="Pick a demo prompt below, or ask the agent…"></textarea>
     <div class="row">
       <button class="primary" id="send">Send to agent</button>
@@ -453,7 +456,7 @@ async function loadStatus() {
 
 async function loadPresets() {
   presets = await api('/api/presets');
-  const btn = (p, ord) => `<button data-preset="${esc(p.id)}" class="${BAD.has(p.id) ? 'bad' : ''}" title="${esc(p.expectation)}">`
+  const btn = (p, ord) => `<button data-preset="${esc(p.id)}" aria-pressed="false" class="${BAD.has(p.id) ? 'bad' : ''}" title="${esc(p.expectation)}">`
     + (ord ? `<span class="ord">${ord}</span>` : '') + `${esc(p.label)}</button>`;
   $('#presets-good').innerHTML = presets.filter(p => !BAD.has(p.id)).map(p => btn(p)).join('');
   $('#presets-bad').innerHTML = presets.filter(p => BAD.has(p.id))
@@ -463,6 +466,10 @@ async function loadPresets() {
     const p = presets.find(x => x.id === b.dataset.preset);
     $('#prompt').value = p.text; $('#prompt').dataset.fromPreset = p.id;
     showInsight('preset:' + p.id);
+    $$('[data-preset]').forEach(button => button.setAttribute('aria-pressed', String(button === b)));
+    $('#preset-selection').textContent = 'Selected: ' + p.label + '. Review the request, then Send to agent.';
+    $('#prompt').focus({ preventScroll: true });
+    $('#prompt').scrollIntoView({ block: 'center' });
   });
   spotlight();
 }
@@ -646,7 +653,11 @@ $('#stop-run').onclick = async () => {
   toast(r.note);
   poll();
 };
-$('#prompt').addEventListener('input', () => { delete $('#prompt').dataset.fromPreset; });
+$('#prompt').addEventListener('input', () => {
+  delete $('#prompt').dataset.fromPreset;
+  $$('[data-preset]').forEach(button => button.setAttribute('aria-pressed', 'false'));
+  $('#preset-selection').textContent = '';
+});
 $$('[data-probe]').forEach(b => b.onclick = async () => {
   b.disabled = true; showInsight('probe:' + b.dataset.probe); markUsed(`[data-probe="${b.dataset.probe}"]`);
   await api('/api/probes/' + b.dataset.probe, { method: 'POST' }); b.disabled = false; poll(); loadProposals(); });
