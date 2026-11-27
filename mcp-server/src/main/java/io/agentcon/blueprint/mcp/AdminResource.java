@@ -237,7 +237,13 @@ public class AdminResource {
         audit.clear();
         WorkspaceManager.Run run = workspaces.createRun();
         audit.record("presenter", "workspace-reset", Decision.allow("workspace.fresh", "New disposable workspace " + run.id()), Map.of());
-        return new JsonObject().put("workspaceId", run.id()).encode();
+        long files;
+        try (var walk = java.nio.file.Files.walk(run.workspace())) {
+            files = walk.filter(p -> java.nio.file.Files.isRegularFile(p, java.nio.file.LinkOption.NOFOLLOW_LINKS)).count();
+        } catch (java.io.IOException e) {
+            files = -1;
+        }
+        return new JsonObject().put("workspaceId", run.id()).put("files", files).encode();
     }
 
     private Map<String, Object> view(ApprovalStore.Proposal p) {

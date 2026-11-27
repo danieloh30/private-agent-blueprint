@@ -127,6 +127,14 @@
   .promote-files li { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; }
   .promote-files code { font-size: 13px; }
   button.promote { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 650; }
+  .toast { position: fixed; top: 14px; left: 50%; transform: translate(-50%, -20px); opacity: 0; pointer-events: none; z-index: 50;
+           max-width: min(900px, calc(100vw - 32px)); padding: 10px 18px; border-radius: 10px; font-size: 17px;
+           background: var(--allow-bg); color: #0f5323; border: 2px solid var(--allow); box-shadow: 0 6px 24px rgba(0,0,0,.15);
+           transition: opacity .25s, transform .25s; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast.error { background: var(--deny-bg); color: #82071e; border-color: var(--deny); }
+  .pill.flash { animation: flash 2.4s ease-out; }
+  @keyframes flash { 0%, 40% { background: var(--allow-bg); border-color: var(--allow); box-shadow: 0 0 0 4px rgba(26,127,55,.2); } }
   #history { list-style: none; margin: 8px 0 0; padding: 0; font-size: 15px; }
   #history li { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; border-top: 1px solid var(--code); }
   #history .t { color: var(--muted); font-size: 13px; margin-left: auto; }
@@ -157,6 +165,7 @@
   <button class="tool" id="restart-flow" title="Clear the step checkmarks">Restart flow</button>
 </nav>
 <aside id="insight" class="insight" aria-live="polite"></aside>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <main>
   <section>
@@ -589,9 +598,29 @@ $$('[data-verify]').forEach(b => b.onclick = async () => {
   const key = afterFix && r && r.status === 'FAILED' ? 'verify:after-' + short + ':FAILED' : 'verify:' + task + ':' + (r && r.status);
   if (INSIGHTS[key]) showInsight(key);
 });
+let toastTimer;
+function toast(html, error) {
+  const t = $('#toast');
+  t.innerHTML = html; t.classList.toggle('error', !!error); t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 7000);
+}
 $('#reset').onclick = async () => {
-  await api('/api/reset', { method: 'POST' });
-  $('#verify-box').innerHTML = '<div class="empty">Fresh workspace. No verification run yet.</div>';
+  const btn = $('#reset'), label = btn.textContent, before = $('#p-workspace').textContent;
+  btn.disabled = true; btn.textContent = 'Creating fresh workspace…'; btn.classList.add('busy');
+  const r = await api('/api/reset', { method: 'POST' });
+  btn.disabled = false; btn.textContent = label; btn.classList.remove('busy');
+  if (!r || !r.workspaceId) {
+    toast('Could not create a fresh workspace: ' + esc((r && (r.error || r.raw)) || 'MCP server unreachable'), true);
+    return;
+  }
+  toast(`<b>✓ Fresh workspace ready:</b> <code>${esc(r.workspaceId)}</code>`
+    + (before && before !== '…' ? ` <span class="note">(was ${esc(before)})</span>` : '')
+    + (r.files >= 0 ? `<br>Copied ${r.files} files from <code>arcade/</code>. ` : '<br>')
+    + 'Proposals, approvals and verification history are cleared.');
+  $('#p-workspace').textContent = r.workspaceId;
+  const pill = $('#p-workspace').closest('.pill');
+  pill.classList.remove('flash'); void pill.offsetWidth; pill.classList.add('flash');
+  $('#verify-box').innerHTML = `<div class="empty">Fresh workspace <code>${esc(r.workspaceId)}</code>. No verification run yet.</div>`;
   promoteResult = ''; promoteView = '';
   showInsight('action:reset'); loadStatus(); loadProposals(); loadPromote(); poll(); };
 

@@ -287,7 +287,11 @@ public class AgentService {
     public JsonObject resetWorkspace() {
         AdminClient.Reply r = admin.post("/workspace/reset", new JsonObject());
         AgentSession s = newSession();
-        s.emit(Kind.INFO, "Fresh disposable workspace", r.json().getString("workspaceId", r.body()));
+        JsonObject j = r.json();
+        long files = j.getLong("files", -1L);
+        s.emit(Kind.INFO, "Fresh disposable workspace", j.getString("workspaceId", r.body())
+                + (files >= 0 ? "\ncopied " + files + " files from arcade/ (including anything you promoted)" : "")
+                + "\nproposals, approvals and verification history start empty");
         return r.json().put("session", s.id());
     }
 }
