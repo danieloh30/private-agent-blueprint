@@ -86,7 +86,8 @@ In Rock Paper Scissors, an invalid move like ?move=banana is reported as a norma
 
 **What you should see** (about 10 to 17 seconds on enMaaS): `search_text`, `list_files` and `read_file` with green
 **ALLOW**, then two `propose_patch` calls with amber **ASK `write.apply-needs-approval`**, and a short explanation.
-Two diffs wait under **Proposed changes**. Nothing has been written yet.
+Two diffs wait under **Proposed changes**. Nothing has been written yet. **Don't approve yet:** step 3 needs the
+diffs pending, and the console shows a tip above them until you've tried a bad action.
 
 > **Insight: the agent may read, but only propose.**
 >

@@ -130,6 +130,7 @@ window.INSIGHTS = {
       'Watch `search_text`, `list_files`, `read_file` turn green, then `propose_patch` turn amber (`write.apply-needs-approval`).',
       'Only ==7 MCP tools==, on a ==disposable copy== of the arcade. There is ==no shell tool==.',
       'The model is reached through a ==pinned host==: no redirects, no proxy. The agent process can\'t touch files; the MCP server never talks to the model.',
+      'Next: ==try bad actions== (step 3) while these diffs are still ==pending==, then approve.',
     ],
     say: 'Green when it reads, amber when it wants to change something. Two diffs wait for me, and nothing has been written.',
     vs: 'In Act 1, OpenCode edited my working tree directly and I reviewed afterwards with git diff.',
