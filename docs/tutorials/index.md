@@ -56,6 +56,10 @@ a live audience in about 12 minutes.
 | Secrets and canaries | Whatever it reads goes to the model | Redacted or blocked before the model, the trace or a log |
 | Verification | Reload the game page | Presenter-owned acceptance tests, then promote and reload |
 
+Which one fits your use case? Act 1 is a tool a developer uses; Act 2 is a system a team builds when an agent works
+unattended, for other people, or near sensitive code. See
+[06 · Decide which one fits your use case](06-compare-and-reset.md#3-decide-which-one-fits-your-use-case).
+
 ## Tutorials
 
 | # | Tutorial | Needs |
