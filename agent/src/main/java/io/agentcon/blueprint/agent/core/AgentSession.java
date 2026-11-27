@@ -14,7 +14,7 @@ public final class AgentSession {
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     private final String id;
-    private final List<ChatMessage> history = new ArrayList<>();
+    private final List<ChatMessage> history = java.util.Collections.synchronizedList(new ArrayList<>());
     private final List<TraceEvent> events = new ArrayList<>();
     private final AtomicLong seq = new AtomicLong();
     private final AtomicBoolean running = new AtomicBoolean();

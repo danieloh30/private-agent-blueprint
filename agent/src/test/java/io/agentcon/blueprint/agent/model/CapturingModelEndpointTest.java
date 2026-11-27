@@ -32,6 +32,7 @@ import org.junit.jupiter.api.Test;
  * HTTP client. The endpoint is a CAPTURING TEST SERVER on loopback that records every request body, so we can
  * prove what would have been sent to a model. All sensitive values are synthetic.
  */
+@io.quarkus.test.junit.QuarkusTest
 class CapturingModelEndpointTest {
 
     static final String CANARY = LeakageInspector.DEFAULT_CANARY;

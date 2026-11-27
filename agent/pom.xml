@@ -8,16 +8,21 @@
     </parent>
     <artifactId>agent</artifactId>
     <packaging>quarkus</packaging>
-    <name>Java coding agent: LangChain4j loop, MCP client, presenter UI</name>
+    <name>Java coding agent: Quarkus @Agent, MCP client, presenter UI</name>
 
     <dependencies>
+        <!-- Quarkus generates and registers the @Agent implementation at build time. -->
+        <dependency>
+            <groupId>io.quarkiverse.langchain4j</groupId>
+            <artifactId>quarkus-langchain4j-agentic</artifactId>
+        </dependency>
         <!-- Presenter UI + JSON API -->
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-rest-jackson</artifactId>
         </dependency>
         <!--
-          LangChain4j, used programmatically so the HTTP egress path is explicit:
+          Model construction stays explicit within the declarative agent boundary:
           we supply our own guarded HTTP client (fixed destination, no redirects, no proxy).
         -->
         <dependency>

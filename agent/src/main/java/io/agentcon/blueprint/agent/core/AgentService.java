@@ -29,14 +29,16 @@ public class AgentService {
 
     private final AgentConfig config;
     private final ModelFactory models;
+    private final CodingAgent codingAgent;
     private final ToolGateway tools;
     private final AdminClient admin;
     private final LeakageInspector inspector;
     private final Map<String, AgentSession> sessions = new ConcurrentHashMap<>();
     private volatile String currentSessionId;
 
-    public AgentService(AgentConfig config, ModelFactory models, ToolGateway tools, AdminClient admin) {
+    public AgentService(AgentConfig config, ModelFactory models, ToolGateway tools, AdminClient admin, CodingAgent codingAgent) {
         this.config = config;
+        this.codingAgent = codingAgent;
         this.models = models;
         this.tools = tools;
         this.admin = admin;
@@ -72,7 +74,7 @@ public class AgentService {
     AgentLoop loop() {
         String prefix = config.model().systemPrefix().filter(p -> !p.isBlank()).map(p -> p + " ").orElse("");
         return new AgentLoop(models.model(), tools, inspector, config.limits(),
-                new LinkedHashSet<>(config.allowedTools()), prefix + Prompts.SYSTEM, Clock.systemUTC());
+                new LinkedHashSet<>(config.allowedTools()), prefix + Prompts.SYSTEM, Clock.systemUTC(), codingAgent);
     }
 
     /** Starts an agent run on a virtual thread. Returns false if one is already running in this session. */

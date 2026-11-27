@@ -19,11 +19,12 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /** Orchestration tests with a DETERMINISTIC FAKE MODEL (no inference) and an in-memory tool stub (not MCP). */
+@io.quarkus.test.junit.QuarkusTest
 class AgentLoopTest {
 
     static final String CANARY = LeakageInspector.DEFAULT_CANARY;
 
-    AgentSession session = new AgentSession("t");
+    AgentSession session = new AgentSession("t-" + java.util.UUID.randomUUID());
 
     boolean hasEvent(String rule) {
         return session.eventsAfter(0).stream().anyMatch(e -> rule.equals(e.rule()));
@@ -34,7 +35,7 @@ class AgentLoopTest {
         FakeModel model = new FakeModel(i -> call("list_files", "{}"));
         var o = TestSupport.loop(model, new StubTools(n -> "[policy] ALLOW read.list: ok"), new Limits(3, 50, 8000,
                 Duration.ofMinutes(1)), Clock.systemUTC()).run(session, "loop forever");
-        assertEquals("step-limit", o.stopReason());
+        assertEquals("step-limit", o.stopReason(), session.eventsAfter(0).toString());
         assertEquals(3, model.requests.size());
         assertTrue(hasEvent("limit.steps"));
     }
@@ -138,4 +139,44 @@ class AgentLoopTest {
         String second = model.requests.get(1).messages().toString();
         assertTrue(second.contains("first question") && second.contains("turn 1"));
     }
+    @Test
+    void interruptedMultiToolExchangeDoesNotPoisonTheNextTurn() {
+        FakeModel model = new FakeModel(i -> i == 1 ? AiMessage.from(java.util.stream.IntStream.range(0, 5)
+                .mapToObj(n -> ToolExecutionRequest.builder().id("tool-" + n).name("read_file").arguments("{}").build())
+                .toList()) : AiMessage.from("recovered"));
+        var loop = TestSupport.loop(model, new StubTools(n -> "ok"),
+                new Limits(10, 3, 8000, Duration.ofMinutes(1)), Clock.systemUTC());
+        assertEquals("tool-limit", loop.run(session, "read files").stopReason());
+        assertEquals("recovered", loop.run(session, "continue").answer());
+        assertFalse(model.requests.getLast().messages().stream().anyMatch(m -> m instanceof AiMessage ai
+                && ai.hasToolExecutionRequests()), "no incomplete tool exchange reaches the model");
+    }
+
+    @Test
+    void generatedAgentKeepsConcurrentSessionsAndTheirModelsSeparate() throws Exception {
+        var first = new AgentSession("first-" + java.util.UUID.randomUUID());
+        var second = new AgentSession("second-" + java.util.UUID.randomUUID());
+        var rendezvous = new java.util.concurrent.CyclicBarrier(2);
+        FakeModel modelA = new FakeModel(i -> {
+            try { rendezvous.await(5, java.util.concurrent.TimeUnit.SECONDS); }
+            catch (Exception e) { throw new IllegalStateException(e); }
+            return AiMessage.from("answer A");
+        });
+        FakeModel modelB = new FakeModel(i -> {
+            try { rendezvous.await(5, java.util.concurrent.TimeUnit.SECONDS); }
+            catch (Exception e) { throw new IllegalStateException(e); }
+            return AiMessage.from("answer B");
+        });
+        try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var a = executor.submit(() -> TestSupport.loop(modelA, new StubTools(n -> ""), Limits.defaults(),
+                    Clock.systemUTC()).run(first, "question A"));
+            var b = executor.submit(() -> TestSupport.loop(modelB, new StubTools(n -> ""), Limits.defaults(),
+                    Clock.systemUTC()).run(second, "question B"));
+            assertEquals("answer A", a.get(10, java.util.concurrent.TimeUnit.SECONDS).answer());
+            assertEquals("answer B", b.get(10, java.util.concurrent.TimeUnit.SECONDS).answer());
+        }
+        assertFalse(modelA.allRequestText().contains("question B"));
+        assertFalse(modelB.allRequestText().contains("question A"));
+    }
+
 }

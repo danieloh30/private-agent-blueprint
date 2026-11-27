@@ -17,7 +17,7 @@ OpenCode, then fix the rest with the Java agent and compare the two.
 flowchart LR
     DEV([Presenter / developer]) -->|browser :8090| UI
     subgraph AGENT["agent (Quarkus 4.0.1 + LangChain4j 1.24)"]
-        UI[Presenter UI + API] --> LOOP[Agent loop<br/>limits, tool allowlist,<br/>leakage inspection]
+        UI[Presenter UI + API] --> LOOP[Quarkus-generated @Agent<br/>governed model + MCP tools<br/>session memory]
     end
     LOOP -->|"OpenAI-compatible HTTPS<br/>pinned host, no redirects"| MODEL([Private model<br/>enMaaS gateway or<br/>loopback Ollama])
     LOOP -->|"MCP Streamable HTTP :8091/mcp<br/>bearer token"| TOOLS
@@ -49,7 +49,7 @@ flowchart LR
 
 | Component | Directory | Role |
 |-----------|-----------|------|
-| Java coding agent | [`agent/`](agent) | Agent loop, conversation state, model client, MCP client, presenter UI. **Talks to the model; never touches files.** |
+| Java coding agent | [`agent/`](agent) | Quarkus-generated `@Agent`, governed model/tool boundaries, session memory, presenter UI. **Talks to the model; never touches files.** |
 | Model configuration | [`agent/.../model`](agent/src/main/java/io/agentcon/blueprint/agent/model), [`profiles/`](profiles) | `enterprise`, `local` and `scripted` profiles; endpoint validation; guarded HTTP client. |
 | Java MCP server | [`mcp-server/`](mcp-server) | Seven focused tools over MCP Streamable HTTP. **Touches the workspace; never talks to a model.** |
 | Policy and output inspection | [`guardrails/`](guardrails) | Framework-free policy engine, path containment, leakage inspector, approval store. |
@@ -59,6 +59,18 @@ flowchart LR
 
 The agent cannot edit its own policies, credentials, acceptance checks or runtime: they live in other processes
 and directories that no tool can reach.
+
+## Declarative Quarkus agent
+
+[`CodingAgent`](agent/src/main/java/io/agentcon/blueprint/agent/core/CodingAgent.java) now uses LangChain4j
+`@Agent` and Quarkus `@RegisterAiService`. Quarkus registers the injectable agent and manages its model/tool
+conversation. The configured suppliers retain the private model boundary, inspected MCP results and presenter-owned
+session history. [`AgentLoop`](agent/src/main/java/io/agentcon/blueprint/agent/core/AgentLoop.java) is now the
+presenter lifecycle adapter; it no longer implements the model/tool dispatch loop.
+
+The console, endpoints, profiles and two-act tutorial flow are the same. Human approval, independent acceptance,
+promotion and unsafe-action checks remain enforced by the MCP server. An annotation does not supply these controls
+by itself. See [the implementation guide](docs/declarative-agent.md) for the exact responsibilities and code.
 
 ## Quick start
 
@@ -184,12 +196,15 @@ Step by step: the [tutorial](docs/tutorials/index.md) (published at
 
 ## Versions
 
-Quarkus 4.0.1 (agent, arcade), LangChain4j 1.24.0, langchain4j-mcp 1.24.0-beta34, Java 25. The MCP server stays on
+Quarkus 4.0.1 (agent, arcade), Quarkus LangChain4j Agentic 2.0.0.CR1 (experimental),
+LangChain4j 1.24.0, langchain4j-agentic and langchain4j-mcp 1.24.0-beta34, Java 25. The MCP server stays on
 Quarkus 3.40.1.2 with quarkus-mcp-server 2.0.4 because quarkus-mcp-server 2.1.0 (managed by the 4.0.1 platform)
 still references the Jackson 2 `ObjectMapperCustomizer` that Quarkus 4 removed; move it to 4.x once a compatible
 release ships. They are separate processes, so the mix is safe.
 
-Guides: [Quarkus MCP server](https://docs.quarkiverse.io/quarkus-mcp-server/dev/),
+Guides: [Quarkus declarative agents](https://docs.quarkiverse.io/quarkus-langchain4j/dev/agentic.html),
+[Quarkus AI services](https://docs.quarkiverse.io/quarkus-langchain4j/dev/ai-services.html),
+[Quarkus MCP server](https://docs.quarkiverse.io/quarkus-mcp-server/dev/),
 [LangChain4j MCP](https://docs.langchain4j.dev/tutorials/mcp),
 [LangChain4j OpenAI-compatible](https://docs.langchain4j.dev/integrations/language-models/open-ai),
 [Quarkus REST](https://quarkus.io/guides/rest), [Quarkus config mappings](https://quarkus.io/guides/config-mappings),

@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
+@io.quarkus.test.junit.QuarkusTest
 class RunBudgetTest {
     @Test
     void deadlineInterruptsAnInFlightModelCall() throws Exception {

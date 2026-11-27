@@ -9,6 +9,7 @@ import io.agentcon.blueprint.agent.model.ScriptedChatModel;
 import java.time.Clock;
 import org.junit.jupiter.api.Test;
 
+@io.quarkus.test.junit.QuarkusTest
 class ScriptedFallbackTest {
 
     @Test

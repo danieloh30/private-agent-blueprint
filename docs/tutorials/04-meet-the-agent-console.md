@@ -35,6 +35,14 @@ flowchart LR
     style BOX fill:#E8E0F0,stroke:#6B5B8A,color:#1F1F1F,stroke-width:2px
 ```
 
+## What runs the agent
+
+The Java agent is a Quarkus-managed `CodingAgent`: its `chat` method has `@Agent`, and `@RegisterAiService`
+connects the governed model, dynamic MCP tools and session memory. Quarkus handles the model/tool conversation;
+application code still enforces budgets, inspection and the MCP server's approval policy. This changes the internal
+implementation, with the same console buttons, profiles and demo steps. See the
+[implementation guide](../declarative-agent.md) for source links and the responsibility split.
+
 ## Steps
 
 ### 1. Start the stack

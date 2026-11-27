@@ -1,40 +1,24 @@
 package io.agentcon.blueprint.agent.core;
 
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
-import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.chat.request.ChatRequest;
-import dev.langchain4j.model.chat.response.ChatResponse;
 import io.agentcon.blueprint.agent.AgentConfig;
-import io.agentcon.blueprint.agent.core.TraceEvent.Kind;
 import io.agentcon.blueprint.agent.tools.ToolGateway;
 import io.agentcon.blueprint.guardrails.LeakageInspector;
+import io.quarkus.arc.Arc;
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * The agent loop, written out explicitly so the audience can see every control:
- *
- * <pre>
- * user text -> leakage inspection -> model -> (tool call -> allowlist -> MCP -> policy -> inspection -> model)* -> answer
- * </pre>
- *
- * Limits per request: model steps, tool calls, tool-output characters delivered to the model, wall-clock time.
- * Tool results are wrapped as untrusted data. The model's hidden reasoning is never requested or shown.
- */
+/** Presenter-facing lifecycle around a Quarkus-generated declarative CodingAgent. */
 public final class AgentLoop {
-
     private static final Pattern THINK = Pattern.compile("(?s)<think>.*?</think>|^.*?</think>");
-
     private final ChatModel model;
     private final ToolGateway tools;
     private final LeakageInspector inspector;
@@ -42,211 +26,64 @@ public final class AgentLoop {
     private final Set<String> allowedTools;
     private final String systemPrompt;
     private final Clock clock;
+    private final CodingAgent agent;
 
     public AgentLoop(ChatModel model, ToolGateway tools, LeakageInspector inspector, AgentConfig.Limits limits,
                      Set<String> allowedTools, String systemPrompt, Clock clock) {
-        this.model = model;
-        this.tools = tools;
-        this.inspector = inspector;
-        this.limits = limits;
-        this.allowedTools = allowedTools;
-        this.systemPrompt = systemPrompt;
-        this.clock = clock;
+        this(model, tools, inspector, limits, allowedTools, systemPrompt, clock, null);
     }
 
-    public record Outcome(String answer, int steps, int toolCalls, String stopReason) {
+    public AgentLoop(ChatModel model, ToolGateway tools, LeakageInspector inspector, AgentConfig.Limits limits,
+                     Set<String> allowedTools, String systemPrompt, Clock clock, CodingAgent agent) {
+        this.model = model; this.tools = tools; this.inspector = inspector; this.limits = limits;
+        this.allowedTools = allowedTools; this.systemPrompt = systemPrompt; this.clock = clock;
+        this.agent = agent == null ? Arc.container().instance(CodingAgent.class).get() : agent;
     }
+
+    public record Outcome(String answer, int steps, int toolCalls, String stopReason) { }
 
     public Outcome run(AgentSession session, String userText) {
         RunBudget budget = new RunBudget(limits.maxRunTime(), session);
         try {
-            return runControlled(session, userText, budget);
-        } catch (RunBudget.Stopped stopped) {
-            session.emit(Kind.LIMIT, stopped.reason.equals("cancelled") ? "Run stopped by presenter" : "Time limit reached",
-                    "Planning stopped. An already dispatched server operation may still finish; inspect the trace and workspace before continuing.",
-                    "DENY", stopped.reason.equals("cancelled") ? "run.cancelled" : "limit.time", 0);
-            return finish(session.history(), new Outcome(null, budget.steps, budget.toolCalls, stopped.reason));
-        }
-    }
-
-    private Outcome runControlled(AgentSession session, String userText, RunBudget budget) {
-        long started = clock.millis();
-        long deadline = started + limits.maxRunTime().toMillis();
-
-        // 1. User-provided context is inspected before it can reach the model, the trace or a log.
-        String text = userText == null ? "" : userText.strip();
-        LeakageInspector.Result input = inspector.inspect(text);
-        session.emit(Kind.REQUEST, "Developer request", inspector.redactForLog(text));
-        if (text.length() > limits.maxInputChars()) {
-            session.emit(Kind.LIMIT, "Request too long", text.length() + " > " + limits.maxInputChars() + " characters",
-                    "DENY", "limit.input-size", 0);
-            return new Outcome(null, 0, 0, "input-too-large");
-        }
-        if (!input.clean()) {
-            session.emit(Kind.INSPECTION, "User input inspected before model delivery", input.summary(),
-                    input.blocked() ? "DENY" : "ALLOW", input.blocked() ? "leakage.blocked" : "leakage.redacted", 0);
-            if (input.blocked()) {
-                session.emit(Kind.ANSWER, "Not sent to the model",
-                        "The request contained restricted or sensitive content and was withheld (" + input.summary() + ").");
-                return new Outcome(null, 0, 0, "input-blocked");
+            String text = userText == null ? "" : userText.strip();
+            var input = inspector.inspect(text);
+            session.emit(TraceEvent.Kind.REQUEST, "Developer request", inspector.redactForLog(text));
+            if (text.length() > limits.maxInputChars()) {
+                session.emit(TraceEvent.Kind.LIMIT, "Request too long", text.length() + " > " + limits.maxInputChars(),
+                        "DENY", "limit.input-size", 0);
+                return new Outcome(null, 0, 0, "input-too-large");
             }
-        }
-
-        List<ToolSpecification> specs;
-        try {
-            specs = budget.call(tools::listTools).stream().filter(t -> allowedTools.contains(t.name())).toList();
-        } catch (RunBudget.Stopped stopped) {
-            throw stopped;
-        } catch (RuntimeException e) {
-            session.emit(Kind.ERROR, "MCP server unavailable", inspector.redactForLog(String.valueOf(e.getMessage())));
-            return new Outcome(null, 0, 0, "mcp-unavailable");
-        }
-
-        List<ChatMessage> history = session.history();
-        history.add(UserMessage.from(input.text()));
-
-        int steps = 0;
-        int toolCalls = 0;
-        int proposals = 0;
-        boolean nudged = false;
-        while (true) {
-            if (clock.millis() > deadline) {
-                session.emit(Kind.LIMIT, "Time limit reached", limits.maxRunTime().toSeconds() + "s per request", "DENY", "limit.time", 0);
-                return finish(history, new Outcome(null, steps, toolCalls, "time-limit"));
-            }
-            if (steps >= limits.maxSteps()) {
-                session.emit(Kind.LIMIT, "Step limit reached", limits.maxSteps() + " model calls per request", "DENY", "limit.steps", 0);
-                return finish(history, new Outcome(null, steps, toolCalls, "step-limit"));
-            }
-            steps++;
-            budget.steps = steps;
-
-            List<ChatMessage> request = new ArrayList<>(history.size() + 1);
-            request.add(SystemMessage.from(systemPrompt));
-            request.addAll(history);
-            long t0 = clock.millis();
-            ChatResponse response;
-            try {
-                response = budget.call(() -> model.chat(ChatRequest.builder().messages(request).toolSpecifications(specs).build()));
-            } catch (RunBudget.Stopped stopped) {
-                throw stopped;
-            } catch (RuntimeException e) {
-                session.emit(Kind.ERROR, "Model call failed", inspector.redactForLog(rootMessage(e)), "DENY", "model.error",
-                        clock.millis() - t0);
-                return finish(history, new Outcome(null, steps, toolCalls, "model-error"));
-            }
-            long modelMs = clock.millis() - t0;
-            AiMessage ai = response.aiMessage();
-            String usage = response.tokenUsage() == null ? "" : " (" + response.tokenUsage().inputTokenCount() + " in / "
-                    + response.tokenUsage().outputTokenCount() + " out tokens)";
-
-            if (ai.hasToolExecutionRequests()) {
-                List<String> names = ai.toolExecutionRequests().stream().map(ToolExecutionRequest::name).toList();
-                session.emit(Kind.MODEL, "Model step " + steps, "requests " + String.join(", ", names) + usage, null, null, modelMs);
-                // Narration attached to tool calls is dropped: only the calls themselves are kept.
-                history.add(AiMessage.from(ai.toolExecutionRequests()));
-                boolean stop = false;
-                for (ToolExecutionRequest call : ai.toolExecutionRequests()) {
-                    String result;
-                    if (stop || toolCalls >= limits.maxToolCalls()) {
-                        if (!stop) {
-                            session.emit(Kind.LIMIT, "Tool-call limit reached", limits.maxToolCalls() + " tool calls per request",
-                                    "DENY", "limit.tool-calls", 0);
-                        }
-                        stop = true;
-                        result = "[agent] DENY limit.tool-calls: tool-call budget exhausted";
-                    } else {
-                        toolCalls++;
-                        if ("propose_patch".equals(call.name())) {
-                            proposals++;
-                        }
-                        budget.toolCalls = toolCalls;
-                        result = executeTool(session, call, budget);
-                    }
-                    history.add(ToolExecutionResultMessage.from(call, wrapUntrusted(call.name(), result)));
+            if (!input.clean()) {
+                session.emit(TraceEvent.Kind.INSPECTION, "User input inspected before model delivery", input.summary(),
+                        input.blocked() ? "DENY" : "ALLOW", input.blocked() ? "leakage.blocked" : "leakage.redacted", 0);
+                if (input.blocked()) {
+                    session.emit(TraceEvent.Kind.ANSWER, "Not sent to the model", "Restricted or sensitive content was withheld.");
+                    return new Outcome(null, 0, 0, "input-blocked");
                 }
-                if (stop) {
-                    return finish(history, new Outcome(null, steps, toolCalls, "tool-limit"));
-                }
-                continue;
             }
-
-            String answer = sanitize(ai.text());
-            ToolExecutionRequest recovered = recoverTextToolCall(answer);
-            if (recovered != null && toolCalls < limits.maxToolCalls()) {
-                // Small local models sometimes print a tool call as text. It is executed through exactly the same
-                // path as a native call (allowlist, limits, MCP, policy, inspection) and labelled in the trace.
-                session.emit(Kind.INFO, "Recovered " + recovered.name() + " call from model text",
-                        "The model printed a tool call instead of emitting one; executing it through the normal path.",
-                        null, null, modelMs);
-                history.add(AiMessage.from(List.of(recovered)));
-                toolCalls++;
-                if ("propose_patch".equals(recovered.name())) {
-                    proposals++;
-                }
-                budget.toolCalls = toolCalls;
-                String result = executeTool(session, recovered, budget);
-                history.add(ToolExecutionResultMessage.from(recovered, wrapUntrusted(recovered.name(), result)));
-                continue;
+            var specs = budget.call(tools::listTools).stream().filter(t -> allowedTools.contains(t.name())).toList();
+            var invocation = new AgentInvocation(session, budget, model, tools, inspector, limits,
+                    allowedTools, systemPrompt, clock, specs);
+            String answer = budget.call(() -> invocation.invoke(agent, input.text()));
+            return finish(session.history(), new Outcome(answer, budget.steps, budget.toolCalls, "answered"));
+        } catch (RuntimeException error) {
+            Throwable cause = error;
+            while (!(cause instanceof RunBudget.Stopped) && cause.getCause() != null && cause.getCause() != cause) cause = cause.getCause();
+            if (cause instanceof RunBudget.Stopped stopped) {
+                String rule = switch (stopped.reason) {
+                    case "cancelled" -> "run.cancelled";
+                    case "step-limit" -> "limit.steps";
+                    case "tool-limit" -> "limit.tool-calls";
+                    default -> "limit.time";
+                };
+                session.emit(TraceEvent.Kind.LIMIT, "Run stopped: " + stopped.reason,
+                        "Already dispatched server actions may still complete; review the trace and workspace.", "DENY", rule, 0);
+                return finish(session.history(), new Outcome(null, budget.steps, budget.toolCalls, stopped.reason));
             }
-            if (!nudged && proposals == 0 && looksLikeTextPatch(answer) && steps < limits.maxSteps()) {
-                // Text cannot be reviewed or approved; ask once for the tool.
-                nudged = true;
-                session.emit(Kind.INFO, "Agent: patch written as text, asking for propose_patch",
-                        "Only propose_patch produces a reviewable, approvable diff.", null, null, modelMs);
-                history.add(AiMessage.from(answer));
-                history.add(UserMessage.from("[agent] Patches in text cannot be reviewed or approved. Call the propose_patch "
-                        + "tool for each change now (find = exact existing text, replace = new text)."));
-                continue;
-            }
-            if (answer.length() > limits.maxAnswerChars()) {
-                answer = answer.substring(0, limits.maxAnswerChars()) + " ... [truncated]";
-            }
-            history.add(AiMessage.from(answer.isBlank() ? "(no answer)" : answer));
-            String shown = inspector.redactForLog(answer);
-            session.emit(Kind.MODEL, "Model step " + steps, "final answer" + usage, null, null, modelMs);
-            session.emit(Kind.ANSWER, "Agent answer", shown.isBlank() ? "(the model returned no text)" : shown, null, null, 0);
-            return finish(history, new Outcome(shown, steps, toolCalls, "answered"));
+            session.emit(TraceEvent.Kind.ERROR, "Agent call failed", inspector.redactForLog(rootMessage(error)), "DENY", "model.error", 0);
+            return finish(session.history(), new Outcome(null, budget.steps, budget.toolCalls,
+                    budget.steps == 0 ? "mcp-unavailable" : "model-error"));
         }
-    }
-
-    private String executeTool(AgentSession session, ToolExecutionRequest call, RunBudget budget) {
-        String args = call.arguments() == null ? "{}" : call.arguments();
-        String shownArgs = inspector.redactForLog(args.length() > 600 ? args.substring(0, 600) + "..." : args);
-        if (!allowedTools.contains(call.name())) {
-            String reason = "Tool '" + call.name() + "' is not in the agent's explicit tool set";
-            session.emit(Kind.TOOL, call.name(), shownArgs + "\n" + reason, "DENY", "agent.tool-not-allowed", 0);
-            return "[policy] DENY agent.tool-not-allowed: " + reason;
-        }
-        long t0 = clock.millis();
-        ToolGateway.Outcome outcome;
-        try {
-            outcome = budget.call(() -> tools.execute(call.id(), call.name(), args));
-        } catch (RunBudget.Stopped stopped) {
-            throw stopped;
-        } catch (RuntimeException e) {
-            outcome = new ToolGateway.Outcome(true, "[policy] DENY tool.transport-error: " + rootMessage(e));
-        }
-        long ms = clock.millis() - t0;
-
-        // Second inspection layer in the agent process (the MCP server already inspected its output).
-        LeakageInspector.Result inspected = inspector.inspect(outcome.text() == null ? "" : outcome.text());
-        String text = inspected.text();
-        if (!inspected.clean()) {
-            session.emit(Kind.INSPECTION, "Tool output inspected in agent before model delivery", inspected.summary(),
-                    inspected.blocked() ? "DENY" : "ALLOW", inspected.blocked() ? "leakage.blocked" : "leakage.redacted", 0);
-        }
-        if (text.length() > limits.maxToolOutputChars()) {
-            text = text.substring(0, limits.maxToolOutputChars()) + "\n... [truncated to " + limits.maxToolOutputChars() + " characters]";
-        }
-        Decisions.Parsed d = Decisions.parse(text);
-        if (d.leakage() != null) {
-            session.emit(Kind.INSPECTION, "MCP server inspected " + call.name() + " output before delivery", d.leakage(),
-                    d.leakage().startsWith("BLOCKED") ? "DENY" : "ALLOW",
-                    d.leakage().startsWith("BLOCKED") ? "leakage.blocked" : "leakage.redacted", 0);
-        }
-        session.emit(Kind.TOOL, call.name(), shownArgs + "\n" + preview(text), d.verdict(), d.rule(), ms);
-        return text;
     }
 
     private static final Set<String> TOOL_NAMES = Set.of("list_files", "search_text", "read_file", "show_diff",
@@ -325,28 +162,34 @@ public final class AgentLoop {
         return THINK.matcher(text).replaceAll("").strip();
     }
 
-    private static String preview(String text) {
-        List<String> lines = text.lines().limit(60).toList();
-        String p = String.join("\n", lines);
-        return p.length() > 4000 ? p.substring(0, 4000) + "..." : p;
-    }
-
     private Outcome finish(List<ChatMessage> history, Outcome outcome) {
-        // Bounded conversation memory: drop the oldest exchanges, always restarting at a user message.
-        while (history.size() > limits.maxHistoryMessages()) {
-            history.removeFirst();
-            while (!history.isEmpty() && !(history.getFirst() instanceof UserMessage)) {
-                history.removeFirst();
+        synchronized (history) {
+            // A stopped invocation can leave part of a multi-tool response in memory.
+            // Keep only complete tool exchanges so the next model request stays valid.
+            for (int i = 0; i < history.size(); i++) {
+                if (history.get(i) instanceof AiMessage ai && ai.hasToolExecutionRequests()) {
+                    var pending = new java.util.HashSet<>(ai.toolExecutionRequests().stream()
+                            .map(ToolExecutionRequest::id).toList());
+                    int j = i + 1;
+                    while (j < history.size() && history.get(j) instanceof ToolExecutionResultMessage result) {
+                        pending.remove(result.id());
+                        j++;
+                    }
+                    if (!pending.isEmpty()) {
+                        history.subList(i, history.size()).clear();
+                        break;
+                    }
+                }
             }
-        }
-        // A dangling tool-request without results would make the next request invalid.
-        if (!history.isEmpty() && history.getLast() instanceof AiMessage last && last.hasToolExecutionRequests()) {
-            history.removeLast();
+            while (history.size() > limits.maxHistoryMessages()) {
+                history.removeFirst();
+                while (!history.isEmpty() && !(history.getFirst() instanceof UserMessage)) history.removeFirst();
+            }
         }
         return outcome;
     }
 
-    private static String rootMessage(Throwable e) {
+    static String rootMessage(Throwable e) {
         Throwable t = e;
         while (t.getCause() != null && t.getCause() != t) {
             t = t.getCause();
