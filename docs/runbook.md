@@ -68,11 +68,18 @@ Set browser zoom to 125–150 %. If the network or gateway fails, see *Fallbacks
 
 ## Act 2. The Java agent
 
+The console's **Demo flow** bar follows this section: six steps, each highlighting the buttons to press and showing
+an **insight** card with the keywords to say out loud. The card changes with each action and with each result (a
+FAILED baseline and a PASSED acceptance get different insights), and a step gets a checkmark when it actually happened.
+Keys: **← / →** change step, **i** hides or shows insights, **p** hides or shows the *Say* line (hide it if the
+audience shouldn't see your cue).
+
 1. Presenter UI header. **Point at:** profile `ENTERPRISE`, endpoint `https://api.enmaas.devshift.net:443`,
    model id, workspace `run-…`, sandbox `isolated container`. The left panel's *Privacy boundary* text shows the
    pinned host, "credential: configured (hidden)", limits and leakage mode.
 2. Click **Acceptance: RPS**. **Observe** (about 15 s): `FAILED: 9 tests, 5 failures`. These are the
-   presenter-owned checks; the agent cannot edit them.
+   presenter-owned checks; the agent cannot edit them. Say: *five fail, and those five are the bug; the agent can't
+   see these tests, so when this turns green, it didn't grade its own homework.*
 
 ## B. Inspect and propose (2.5 min)
 

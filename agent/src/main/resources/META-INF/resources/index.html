@@ -6,58 +6,122 @@
 <title>Private Coding Agent</title>
 <style>
   :root {
-    --bg: #f7f7f5; --panel: #ffffff; --ink: #1b1f24; --muted: #59636e; --line: #d8dde3;
+    --bg: #f5f4f0; --panel: #ffffff; --ink: #1b1f24; --muted: #59636e; --line: #d8dde3;
     --allow: #1a7f37; --allow-bg: #dafbe1; --ask: #9a6700; --ask-bg: #fff8c5; --deny: #cf222e; --deny-bg: #ffebe9;
-    --accent: #0b5cad; --code: #f3f4f6;
+    --accent: #0b5cad; --accent-bg: #ddf4ff; --code: #f3f4f6; --mark: #ffe58a; --insight: #fffcf2; --insight-line: #e3c766;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 19px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  header { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; padding: 14px 22px; background: var(--panel); border-bottom: 1px solid var(--line); }
-  header h1 { font-size: 24px; margin: 0 12px 0 0; }
-  .pill { border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 17px; white-space: nowrap; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 18px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  code { font: .9em ui-monospace, Menlo, Consolas, monospace; background: var(--code); padding: 0 4px; border-radius: 4px; }
+
+  header { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 10px 20px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 22px; margin: 0 10px 0 0; }
+  .pill { border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px; font-size: 15px; white-space: nowrap; }
   .pill b { font-weight: 650; }
   .pill.profile-local { background: var(--allow-bg); border-color: var(--allow); }
-  .pill.profile-enterprise { background: #ddf4ff; border-color: var(--accent); }
+  .pill.profile-enterprise { background: var(--accent-bg); border-color: var(--accent); }
   .pill.profile-scripted { background: var(--ask-bg); border-color: var(--ask); font-weight: 700; }
-  .scripted-banner { display: none; background: var(--ask-bg); border-bottom: 2px solid var(--ask); padding: 10px 22px; font-weight: 700; font-size: 20px; }
-  main { display: grid; grid-template-columns: minmax(330px, 1fr) minmax(420px, 1.5fr) minmax(420px, 1.5fr); gap: 16px; padding: 16px 22px; }
-  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
-  h2 { font-size: 20px; margin: 0 0 10px; }
-  h3 { font-size: 16px; margin: 16px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
-  textarea { width: 100%; min-height: 150px; font: inherit; padding: 10px; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
-  button { font: inherit; font-size: 17px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; margin: 3px 4px 3px 0; }
+  .scripted-banner { display: none; background: var(--ask-bg); border-bottom: 2px solid var(--ask); padding: 10px 20px; font-weight: 700; font-size: 19px; }
+
+  /* Demo flow stepper */
+  #flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 20px 0; }
+  #flow .label { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+  .step { display: flex; align-items: center; gap: 8px; font-size: 16px; padding: 6px 12px 6px 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); margin: 0; }
+  .step .num { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--code); font-weight: 700; font-size: 14px; }
+  .step.current { border-color: var(--accent); background: var(--accent-bg); font-weight: 650; }
+  .step.current .num { background: var(--accent); color: #fff; }
+  .step.done .num { background: var(--allow); color: #fff; }
+  .step.done .num::after { content: "✓"; }
+  .step.done .num span { display: none; }
+  #flow .spacer { flex: 1; }
+  #flow .tool { font-size: 14px; padding: 5px 10px; margin: 0; }
+  #next.ready { border-color: var(--accent); color: var(--accent); font-weight: 650; animation: nudge 1.6s ease-in-out infinite; }
+
+  /* Insight card */
+  #insight { margin: 10px 20px 0; background: var(--insight); border: 1px solid var(--insight-line); border-left: 8px solid var(--insight-line); border-radius: 10px; padding: 12px 18px; }
+  #insight.hidden { display: none; }
+  /* Stable height so the controls below don't move when the insight changes mid-demo. */
+  @media (min-width: 1301px) { #insight { height: 232px; overflow-y: auto; } }
+  #insight .kicker { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #8a6d00; }
+  #insight h2 { font-size: 21px; margin: 2px 0 4px; }
+  #insight .headline { font-size: 25px; line-height: 1.35; font-weight: 600; margin: 0 0 6px; }
+  #insight ul { margin: 4px 0 0; padding-left: 22px; columns: 2 420px; column-gap: 32px; }
+  #insight li { margin: 0 0 4px; break-inside: avoid; }
+  #insight .extra { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 8px; align-items: center; }
+  #insight .vs { font-size: 16px; background: #fff; border: 1px dashed #b08a1a; border-radius: 8px; padding: 4px 10px; }
+  #insight .vs b { color: #8a6d00; }
+  #insight .say { font-size: 17px; font-style: italic; color: #3d3d3d; border-left: 3px solid var(--accent); padding-left: 10px; }
+  #insight .say b { font-style: normal; color: var(--accent); font-size: 13px; letter-spacing: .06em; text-transform: uppercase; margin-right: 6px; }
+  body.no-cue #insight .say { display: none; }
+  #insight .cmd { display: inline-flex; align-items: center; gap: 6px; }
+  #insight .cmd code { font-size: 17px; padding: 4px 8px; }
+  mark { background: var(--mark); color: inherit; padding: 0 3px; border-radius: 4px; font-weight: 650; }
+  .v { font-weight: 800; padding: 0 6px; border-radius: 5px; font-size: .92em; }
+  .v.ALLOW { background: var(--allow-bg); color: var(--allow); }
+  .v.ASK { background: var(--ask-bg); color: var(--ask); }
+  .v.DENY { background: var(--deny-bg); color: var(--deny); }
+
+  main { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(420px, 1.5fr) minmax(420px, 1.5fr); gap: 14px; padding: 12px 20px 20px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; min-width: 0; }
+  section > h2 { font-size: 19px; margin: 0 0 8px; }
+  h3 { font-size: 14px; margin: 14px 0 4px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; display: flex; align-items: center; gap: 6px; }
+  h3 .num { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--code); color: var(--ink); font-size: 12px; letter-spacing: 0; }
+  textarea { width: 100%; min-height: 120px; font: inherit; font-size: 16px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
+  button { font: inherit; font-size: 16px; padding: 6px 11px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; margin: 3px 4px 3px 0; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
   button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
   button.approve { background: var(--allow); color: #fff; border-color: var(--allow); }
   button.reject { color: var(--deny); border-color: var(--deny); }
+  button.bad { border-color: #e7b0ad; }
   button:disabled { opacity: .5; cursor: default; }
-  .note { color: var(--muted); font-size: 16px; }
-  #trace { display: flex; flex-direction: column; gap: 8px; max-height: calc(100vh - 170px); overflow-y: auto; }
-  .ev { border: 1px solid var(--line); border-left-width: 6px; border-radius: 8px; padding: 8px 10px; }
+  .spot { outline: 3px solid var(--accent); outline-offset: 2px; animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { outline-color: rgba(11, 92, 173, .25); } }
+  @keyframes nudge { 50% { box-shadow: 0 0 0 4px rgba(11, 92, 173, .18); } }
+  @media (prefers-reduced-motion: reduce) { .spot, #next.ready { animation: none; } }
+  .note { color: var(--muted); font-size: 15px; }
+  .row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+  .busy::before { content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 6px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -1px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #trace { display: flex; flex-direction: column; gap: 8px; max-height: calc(100vh - 330px); min-height: 240px; overflow-y: auto; }
+  .ev { border: 1px solid var(--line); border-left-width: 6px; border-radius: 8px; padding: 7px 10px; }
   .ev.ALLOW { border-left-color: var(--allow); } .ev.ASK { border-left-color: var(--ask); } .ev.DENY { border-left-color: var(--deny); }
+  .ev.fresh { animation: fresh 1.8s ease-out; }
+  @keyframes fresh { from { background: #fff7d1; } }
   .ev .head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
   .ev .title { font-weight: 650; }
-  .ev .kind { font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
-  .ev .meta { margin-left: auto; font-size: 14px; color: var(--muted); }
-  .ev pre { margin: 6px 0 0; max-height: 260px; overflow: auto; }
-  .badge { font-size: 15px; font-weight: 700; padding: 1px 8px; border-radius: 6px; }
+  .ev .kind { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .ev .meta { margin-left: auto; font-size: 13px; color: var(--muted); }
+  .ev pre { margin: 6px 0 0; max-height: 240px; overflow: auto; }
+  .badge { font-size: 14px; font-weight: 700; padding: 1px 8px; border-radius: 6px; }
   .badge.ALLOW { background: var(--allow-bg); color: var(--allow); }
   .badge.ASK { background: var(--ask-bg); color: var(--ask); }
   .badge.DENY { background: var(--deny-bg); color: var(--deny); }
-  .rule { font-family: ui-monospace, Menlo, monospace; font-size: 15px; color: var(--muted); }
-  pre { background: var(--code); border-radius: 6px; padding: 8px; font: 15px/1.4 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+  .rule { font-family: ui-monospace, Menlo, monospace; font-size: 14px; color: var(--muted); }
+  pre { background: var(--code); border-radius: 6px; padding: 8px; font: 14px/1.4 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
   .diff .add { background: #e6ffec; color: #116329; display: block; }
   .diff .del { background: #ffebe9; color: #82071e; display: block; }
   .diff .hunk { color: var(--accent); display: block; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 14px; color: var(--muted); margin-bottom: 8px; }
+  .empty { border: 1px dashed var(--line); border-radius: 8px; padding: 14px; color: var(--muted); font-size: 15px; }
+
   .proposal { border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-bottom: 12px; }
+  .proposal.PENDING { border-color: var(--ask); box-shadow: 0 0 0 2px var(--ask-bg); }
   .proposal .head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
-  .state { font-weight: 700; font-size: 15px; padding: 1px 8px; border-radius: 6px; background: var(--code); }
+  .state { font-weight: 700; font-size: 14px; padding: 1px 8px; border-radius: 6px; background: var(--code); }
   .state.PENDING { background: var(--ask-bg); color: var(--ask); }
   .state.APPLIED { background: var(--allow-bg); color: var(--allow); }
-  .state.REJECTED, .state.FAILED { background: var(--deny-bg); color: var(--deny); }
-  #verify-box { font-size: 18px; }
+  .state.REJECTED, .state.FAILED, .state.EXPIRED { background: var(--deny-bg); color: var(--deny); }
+  .binding { font-size: 14px; color: var(--muted); margin: 4px 0; }
+  .binding b { color: var(--ink); font-weight: 600; }
+
   #verify-box .big { font-size: 22px; font-weight: 700; }
-  .ok { color: var(--allow); } .bad { color: var(--deny); }
-  @media (max-width: 1300px) { main { grid-template-columns: 1fr; } #trace { max-height: none; } }
+  #verify-box pre { max-height: 180px; overflow: auto; }
+  .ok { color: var(--allow); } .bad-t { color: var(--deny); }
+  #history { list-style: none; margin: 8px 0 0; padding: 0; font-size: 15px; }
+  #history li { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; border-top: 1px solid var(--code); }
+  #history .t { color: var(--muted); font-size: 13px; margin-left: auto; }
+  @media (max-width: 1300px) { main { grid-template-columns: 1fr; } #trace { max-height: none; } #insight ul { columns: 1; } }
 </style>
 </head>
 <body>
@@ -72,17 +136,43 @@
 <div class="scripted-banner" id="scripted-banner">
   SCRIPTED FALLBACK: no model inference. Tool calls are pre-recorded; MCP, policy and sandbox are real.
 </div>
+
+<nav id="flow" aria-label="Demo flow">
+  <span class="label">Demo flow</span>
+  <span id="steps" class="row"></span>
+  <span class="spacer"></span>
+  <button class="tool" id="prev" title="Previous step (←)">← Prev</button>
+  <button class="tool" id="next" title="Next step (→)">Next →</button>
+  <button class="tool" id="toggle-insight" title="Show or hide insights (i)">Insights: on</button>
+  <button class="tool" id="toggle-cue" title="Show or hide the presenter cue (p)">Presenter cue: on</button>
+  <button class="tool" id="restart-flow" title="Clear the step checkmarks">Restart flow</button>
+</nav>
+<aside id="insight" aria-live="polite"></aside>
+
 <main>
   <section>
     <h2>Developer request</h2>
-    <textarea id="prompt" placeholder="Ask the agent…"></textarea>
-    <div>
+    <textarea id="prompt" placeholder="Pick a demo prompt below, or ask the agent…"></textarea>
+    <div class="row">
       <button class="primary" id="send">Send to agent</button>
       <span class="note" id="run-state"></span>
     </div>
-    <h3>Demo prompts (live agent)</h3>
-    <div id="presets"></div>
-    <h3>Deterministic probes (no model)</h3>
+
+    <h3><span class="num">1</span><span class="num">4</span><span class="num">6</span> Presenter checks (sandboxed)</h3>
+    <div class="note">Acceptance tests you own. The agent can't see or edit them.</div>
+    <div>
+      <button data-verify="acceptance-rps">Acceptance: RPS</button>
+      <button data-verify="acceptance-scramble">Acceptance: Scramble</button>
+      <button data-verify="unit-tests">Unit tests</button>
+    </div>
+
+    <h3><span class="num">2</span><span class="num">6</span> Tasks (live agent)</h3>
+    <div id="presets-good"></div>
+
+    <h3><span class="num">3</span> Bad actions (live agent)</h3>
+    <div id="presets-bad"></div>
+
+    <h3><span class="num">3</span> Deterministic probes (no model)</h3>
     <div class="note">Fixed requests through the same MCP and policy path.</div>
     <div>
       <button data-probe="secret">Secret file read</button>
@@ -93,12 +183,7 @@
       <button data-probe="unknown-tool">Unknown tool</button>
       <button data-probe="unapproved-write">Write without approval</button>
     </div>
-    <h3>Presenter checks (sandboxed)</h3>
-    <div>
-      <button data-verify="acceptance-rps">Acceptance: RPS</button>
-      <button data-verify="unit-tests">Unit tests</button>
-      <button data-verify="acceptance-scramble">Acceptance: Scramble</button>
-    </div>
+
     <h3>Run</h3>
     <div>
       <button id="reset">Fresh workspace</button>
@@ -110,22 +195,44 @@
 
   <section>
     <h2>Tool trace and policy decisions</h2>
-    <div class="note">Tool calls, decisions and inspected results. No hidden model reasoning is requested or shown.</div>
+    <div class="legend">
+      <span><span class="badge ALLOW">ALLOW</span> runs</span>
+      <span><span class="badge ASK">ASK</span> needs a human</span>
+      <span><span class="badge DENY">DENY</span> stopped before any effect</span>
+      <span>No hidden model reasoning is requested or shown.</span>
+    </div>
     <div id="trace"></div>
   </section>
 
   <section>
     <h2>Verification</h2>
-    <div id="verify-box" class="note">No verification run yet.</div>
-    <h2 style="margin-top:18px">Proposed changes</h2>
-    <div id="proposals" class="note">No proposals yet.</div>
+    <div id="verify-box"><div class="empty">No verification run yet. Start with <b>Acceptance: RPS</b> to show the baseline failing.</div></div>
+    <ul id="history"></ul>
+    <h2 style="margin-top:16px">Proposed changes</h2>
+    <div id="proposals"><div class="empty">No proposals yet. The agent can only propose; you approve each exact diff here.</div></div>
   </section>
 </main>
+<script src="insights.js"></script>
 <script>
 const $ = (s) => document.querySelector(s);
-let after = 0, sessionId = null, running = false;
+const $$ = (s) => Array.from(document.querySelectorAll(s));
+let after = 0, sessionId = null, running = false, runStart = 0, presets = [];
+const BAD = new Set(['secret', 'canary', 'command', 'apply']);
+const STEPS = window.DEMO_STEPS, INSIGHTS = window.INSIGHTS;
+
+function store(k, v) { try { localStorage.setItem('console.' + k, JSON.stringify(v)); } catch (e) {} }
+function load(k, d) { try { const v = localStorage.getItem('console.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }
+const flow = { current: load('step', 0), done: new Set(load('done', [])), insight: load('insight', true), cue: load('cue', true) };
 
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function md(s) {
+  return esc(s)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/==(.+?)==/g, '<mark>$1</mark>')
+    .replace(/\+\+(.+?)\+\+/g, '<span class="v ALLOW">$1</span>')
+    .replace(/\?\?(.+?)\?\?/g, '<span class="v ASK">$1</span>')
+    .replace(/!!(.+?)!!/g, '<span class="v DENY">$1</span>');
+}
 function diffHtml(d) {
   return esc(d).split('\n').map(l => {
     if (l.startsWith('+++') || l.startsWith('---')) return `<span>${l}</span>`;
@@ -141,11 +248,82 @@ async function api(path, opts = {}) {
   try { return JSON.parse(t); } catch { return { raw: t, status: r.status }; }
 }
 
+// ---------- Demo flow and insights ----------
+function renderSteps() {
+  $('#steps').innerHTML = STEPS.map((s, i) =>
+    `<button class="step${i === flow.current ? ' current' : ''}${flow.done.has(s.id) ? ' done' : ''}" data-step="${i}">`
+    + `<span class="num"><span>${s.n}</span></span>${esc(s.label)}</button>`).join('');
+  $$('[data-step]').forEach(b => b.onclick = () => goStep(+b.dataset.step));
+  const cur = STEPS[flow.current];
+  $('#prev').disabled = flow.current === 0;
+  $('#next').disabled = flow.current === STEPS.length - 1;
+  $('#next').classList.toggle('ready', !!cur && flow.done.has(cur.id) && flow.current < STEPS.length - 1);
+  spotlight();
+}
+function spotlight() {
+  $$('.spot').forEach(e => e.classList.remove('spot'));
+  (STEPS[flow.current]?.targets || []).forEach(sel => $$(sel).forEach(e => e.classList.add('spot')));
+}
+function goStep(i) {
+  flow.current = Math.max(0, Math.min(STEPS.length - 1, i)); store('step', flow.current);
+  renderSteps(); showInsight(STEPS[flow.current].insight);
+}
+function markDone(id) {
+  if (flow.done.has(id)) return;
+  flow.done.add(id); store('done', [...flow.done]); renderSteps();
+}
+function resolve(key) {
+  let ins = INSIGHTS[key], hops = 0;
+  while (ins && ins.ref && hops++ < 3) ins = INSIGHTS[ins.ref];
+  return ins;
+}
+function showInsight(key) {
+  const ins = resolve(key); if (!ins) return;
+  const step = STEPS[flow.current];
+  const box = $('#insight');
+  box.innerHTML =
+    `<div class="kicker">Step ${step.n} · ${esc(step.label)}</div>`
+    + `<h2>${esc(ins.title)}</h2>`
+    + `<p class="headline">${md(ins.headline)}</p>`
+    + (ins.points && ins.points.length ? `<ul>${ins.points.map(p => `<li>${md(p)}</li>`).join('')}</ul>` : '')
+    + `<div class="extra">`
+    + (ins.command ? `<span class="cmd"><code>${esc(ins.command)}</code><button class="tool" id="copy-cmd">Copy</button></span>` : '')
+    + (ins.link ? `<a href="${esc(ins.link)}" target="_blank">${esc(ins.link)}</a>` : '')
+    + (ins.command ? `<button class="tool" id="mark-promoted">Mark as promoted</button>` : '')
+    + (ins.vs ? `<span class="vs"><b>vs Act 1:</b> ${md(ins.vs)}</span>` : '')
+    + (ins.say ? `<span class="say"><b>Say</b>${md(ins.say)}</span>` : '')
+    + `</div>`;
+  const copy = $('#copy-cmd');
+  if (copy) copy.onclick = async () => {
+    try { await navigator.clipboard.writeText(ins.command); copy.textContent = 'Copied'; } catch (e) { copy.textContent = 'Copy failed'; }
+  };
+  const mp = $('#mark-promoted'); if (mp) mp.onclick = () => markDone('promote');
+}
+function applyToggles() {
+  $('#insight').classList.toggle('hidden', !flow.insight);
+  document.body.classList.toggle('no-cue', !flow.cue);
+  $('#toggle-insight').textContent = 'Insights: ' + (flow.insight ? 'on' : 'off');
+  $('#toggle-cue').textContent = 'Presenter cue: ' + (flow.cue ? 'on' : 'off');
+}
+$('#prev').onclick = () => goStep(flow.current - 1);
+$('#next').onclick = () => goStep(flow.current + 1);
+$('#toggle-insight').onclick = () => { flow.insight = !flow.insight; store('insight', flow.insight); applyToggles(); };
+$('#toggle-cue').onclick = () => { flow.cue = !flow.cue; store('cue', flow.cue); applyToggles(); };
+$('#restart-flow').onclick = () => { flow.done.clear(); store('done', []); goStep(0); };
+document.addEventListener('keydown', (e) => {
+  if (e.target.matches('textarea, input') || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === 'ArrowRight') goStep(flow.current + 1);
+  else if (e.key === 'ArrowLeft') goStep(flow.current - 1);
+  else if (e.key === 'i') $('#toggle-insight').click();
+  else if (e.key === 'p') $('#toggle-cue').click();
+});
+
+// ---------- Status ----------
 async function loadStatus() {
   const s = await api('/api/status');
   const p = $('#p-profile');
   p.className = 'pill profile-' + s.profile;
-  p.innerHTML = 'profile: <b>' + esc(s.scripted ? 'SCRIPTED FALLBACK' : s.profile.toUpperCase()) + '</b>';
+  p.innerHTML = 'profile: <b>' + esc(s.scripted ? 'SCRIPTED FALLBACK' : String(s.profile).toUpperCase()) + '</b>';
   $('#p-endpoint').textContent = s.endpoint;
   $('#p-model').textContent = s.model;
   $('#scripted-banner').style.display = s.scripted ? 'block' : 'none';
@@ -161,79 +339,143 @@ async function loadStatus() {
 }
 
 async function loadPresets() {
-  const ps = await api('/api/presets');
-  $('#presets').innerHTML = ps.map(p => `<button data-preset="${esc(p.id)}" title="${esc(p.expectation)}">${esc(p.label)}</button>`).join('');
-  document.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => {
-    const p = ps.find(x => x.id === b.dataset.preset); $('#prompt').value = p.text; });
+  presets = await api('/api/presets');
+  const btn = p => `<button data-preset="${esc(p.id)}" class="${BAD.has(p.id) ? 'bad' : ''}" title="${esc(p.expectation)}">${esc(p.label)}</button>`;
+  $('#presets-good').innerHTML = presets.filter(p => !BAD.has(p.id)).map(btn).join('');
+  $('#presets-bad').innerHTML = presets.filter(p => BAD.has(p.id)).map(btn).join('');
+  $$('[data-preset]').forEach(b => b.onclick = () => {
+    const p = presets.find(x => x.id === b.dataset.preset);
+    $('#prompt').value = p.text; $('#prompt').dataset.preset = p.id;
+    showInsight('preset:' + p.id);
+  });
+  spotlight();
 }
 
-function renderEvent(e) {
+// ---------- Trace ----------
+const history = [];
+function renderHistory() {
+  $('#history').innerHTML = history.slice().reverse().map(h =>
+    `<li><span class="badge ${h.ok ? 'ALLOW' : 'DENY'}">${h.ok ? 'PASSED' : 'FAILED'}</span>`
+    + `<span>${esc(h.title)}</span><span class="t">${esc(h.time)}</span></li>`).join('');
+}
+function renderEvent(e, live) {
   const v = e.verdict || '';
+  if (!$('#trace .ev')) $('#trace').innerHTML = '';
   const div = document.createElement('div');
-  div.className = 'ev ' + v;
+  div.className = 'ev ' + v + (live ? ' fresh' : '');
   const dur = e.durationMs ? (e.durationMs >= 1000 ? (e.durationMs/1000).toFixed(1) + ' s' : e.durationMs + ' ms') : '';
+  const isDiff = e.kind === 'TOOL' && (e.title.startsWith('propose_patch') || e.title.startsWith('apply_patch'));
   div.innerHTML = `<div class="head"><span class="kind">${esc(e.kind)}</span><span class="title">${esc(e.title)}</span>`
     + (v ? `<span class="badge ${v}">${v}</span>` : '')
     + (e.rule ? `<span class="rule">${esc(e.rule)}</span>` : '')
     + `<span class="meta">${esc(e.time)} ${dur}</span></div>`
-    + (e.detail ? `<pre>${e.kind === 'TOOL' && e.title.startsWith('propose_patch') || e.title.startsWith('apply_patch') ? diffHtml(e.detail) : esc(e.detail)}</pre>` : '');
+    + (e.detail ? `<pre${isDiff ? ' class="diff"' : ''}>${isDiff ? diffHtml(e.detail) : esc(e.detail)}</pre>` : '');
   $('#trace').appendChild(div);
-  div.scrollIntoView({ block: 'end', behavior: 'smooth' });
+  // Scroll only the trace panel; scrolling the page would push the flow and insight off screen.
+  if (live) { const tr = $('#trace'); tr.scrollTo({ top: tr.scrollHeight, behavior: 'smooth' }); }
+
+  // Flow progress from what actually happened.
+  const t = e.title || '';
   if (e.kind === 'VERIFICATION' && v) {
     const ok = v === 'ALLOW';
-    $('#verify-box').innerHTML = `<div class="big ${ok ? 'ok' : 'bad'}">${esc(e.title)}</div><pre>${esc(e.detail)}</pre>`;
+    $('#verify-box').innerHTML = `<div class="big ${ok ? 'ok' : 'bad-t'}">${esc(t)}</div><pre>${esc(e.detail)}</pre>`;
+    history.push({ ok, title: t.replace(/\s*\(\d+ ms\)$/, ''), time: e.time }); renderHistory();
+    if (t.startsWith('acceptance-rps:')) { markDone('baseline'); if (ok) markDone('approve'); }
+    if (t.startsWith('acceptance-scramble:') && ok) markDone('scramble');
   }
+  if (e.kind === 'TOOL' && t.startsWith('propose_patch')) markDone('ask');
+  if (e.kind === 'PROBE') markDone('bad');
 }
 
-async function poll() {
+let polling = null;
+function poll() {
+  // One request at a time: overlapping polls would render the same events twice.
+  if (!polling) polling = pollOnce().finally(() => { polling = null; });
+  return polling;
+}
+async function pollOnce() {
   try {
-    const s = await api('/api/session?after=' + after);
-    if (s.id !== sessionId) { sessionId = s.id; after = 0; $('#trace').innerHTML = ''; return poll(); }
-    s.events.forEach(e => { renderEvent(e); after = Math.max(after, e.seq); });
+    let s = await api('/api/session?after=' + after);
+    if (s.id !== sessionId) {
+      const first = sessionId === null;
+      sessionId = s.id; after = 0; $('#trace').innerHTML = emptyTrace();
+      if (!first) { history.length = 0; renderHistory(); }
+      s = await api('/api/session?after=0');
+    }
+    const live = after > 0;
+    s.events.forEach(e => { if (e.seq <= after) return; renderEvent(e, live); after = e.seq; });
+    if (s.running && !running) runStart = Date.now();
     running = s.running;
     $('#send').disabled = running;
-    $('#run-state').textContent = running ? 'agent working…' : '';
+    const rs = $('#run-state');
+    rs.className = 'note' + (running ? ' busy' : '');
+    rs.textContent = running ? `agent working… ${Math.round((Date.now() - runStart) / 1000)} s` : '';
   } catch (e) { $('#run-state').textContent = 'agent unreachable'; }
 }
+function emptyTrace() {
+  return '<div class="empty">The trace is empty. Every tool call will appear here with the policy decision and the rule that made it.</div>';
+}
 
+// ---------- Proposals ----------
 async function loadProposals() {
   const ps = await api('/api/proposals');
-  if (!Array.isArray(ps) || ps.length === 0) { $('#proposals').innerHTML = 'No proposals yet.'; return; }
-  $('#proposals').classList.remove('note');
+  if (!Array.isArray(ps) || ps.length === 0) {
+    $('#proposals').innerHTML = '<div class="empty">No proposals yet. The agent can only propose; you approve each exact diff here.</div>';
+    spotlight(); return;
+  }
   $('#proposals').innerHTML = ps.slice().reverse().map(p => `
-    <div class="proposal">
+    <div class="proposal ${p.state}">
       <div class="head"><b>${esc(p.id)}</b><span class="rule">${esc(p.path)}</span><span class="state ${p.state}">${p.state}</span></div>
-      <div class="note">patch sha256 ${esc(p.patchSha256.slice(0,12))}… bound to workspace ${esc(p.workspaceId)}, expires ${esc(p.expiresAt.slice(11,19))} UTC</div>
+      <div class="binding">Approval binds to: patch sha256 <b>${esc(p.patchSha256.slice(0,12))}…</b> · workspace <b>${esc(p.workspaceId)}</b> · single use · expires <b>${esc(p.expiresAt.slice(11,19))} UTC</b></div>
       <pre class="diff">${diffHtml(p.diff)}</pre>
       ${p.state === 'PENDING' ? `<button class="approve" data-approve="${esc(p.id)}" data-sha="${esc(p.patchSha256)}">Approve and apply this diff</button>
         <button class="reject" data-reject="${esc(p.id)}">Reject</button>` : ''}
     </div>`).join('');
-  document.querySelectorAll('[data-approve]').forEach(b => b.onclick = async () => {
+  $$('[data-approve]').forEach(b => b.onclick = async () => {
     b.disabled = true;
-    await api(`/api/proposals/${b.dataset.approve}/approve`, { method: 'POST', body: JSON.stringify({ patchSha256: b.dataset.sha }) });
+    const r = await api(`/api/proposals/${b.dataset.approve}/approve`, { method: 'POST', body: JSON.stringify({ patchSha256: b.dataset.sha }) });
+    if (r && r.ok !== false) showInsight('action:approve');
     loadProposals(); poll();
   });
-  document.querySelectorAll('[data-reject]').forEach(b => b.onclick = async () => {
-    await api(`/api/proposals/${b.dataset.reject}/reject`, { method: 'POST' }); loadProposals(); poll();
+  $$('[data-reject]').forEach(b => b.onclick = async () => {
+    await api(`/api/proposals/${b.dataset.reject}/reject`, { method: 'POST' }); showInsight('action:reject'); loadProposals(); poll();
   });
+  spotlight();
 }
 
+// ---------- Actions ----------
 $('#send').onclick = async () => {
   const text = $('#prompt').value.trim(); if (!text) return;
   $('#send').disabled = true;
+  const preset = $('#prompt').dataset.preset;
+  const p = presets.find(x => x.id === preset);
+  if (p && p.text === text && BAD.has(preset)) markDone('bad');
   await api('/api/ask', { method: 'POST', body: JSON.stringify({ text }) });
   poll();
 };
-document.querySelectorAll('[data-probe]').forEach(b => b.onclick = async () => {
-  b.disabled = true; await api('/api/probes/' + b.dataset.probe, { method: 'POST' }); b.disabled = false; poll(); loadProposals(); });
-document.querySelectorAll('[data-verify]').forEach(b => b.onclick = async () => {
-  b.disabled = true; $('#verify-box').innerHTML = '<div class="big">Running ' + esc(b.dataset.verify) + ' in the sandbox…</div>';
+$('#prompt').addEventListener('input', () => { delete $('#prompt').dataset.preset; });
+$$('[data-probe]').forEach(b => b.onclick = async () => {
+  b.disabled = true; showInsight('probe:' + b.dataset.probe);
+  await api('/api/probes/' + b.dataset.probe, { method: 'POST' }); b.disabled = false; poll(); loadProposals(); });
+$$('[data-verify]').forEach(b => b.onclick = async () => {
+  const task = b.dataset.verify, t0 = Date.now();
+  $$('[data-verify]').forEach(x => x.disabled = true);
+  showInsight('verify:' + task);
+  const tick = () => { $('#verify-box').innerHTML = `<div class="big busy">Running ${esc(task)} in the sandbox… ${Math.round((Date.now() - t0) / 1000)} s</div>`
+    + '<div class="note">Isolated container: no network, read-only filesystem, CPU, memory and time limits.</div>'; };
+  tick(); const timer = setInterval(tick, 1000);
   setTimeout(poll, 300);
-  await api('/api/verify/' + b.dataset.verify, { method: 'POST' }); b.disabled = false; poll(); });
+  const r = await api('/api/verify/' + task, { method: 'POST' });
+  clearInterval(timer); $$('[data-verify]').forEach(x => x.disabled = false);
+  await poll();
+  if (r && r.status && INSIGHTS['verify:' + task + ':' + r.status]) showInsight('verify:' + task + ':' + r.status);
+});
 $('#reset').onclick = async () => {
   await api('/api/reset', { method: 'POST' });
-  $('#verify-box').innerHTML = 'No verification run yet.'; loadStatus(); loadProposals(); poll(); };
+  $('#verify-box').innerHTML = '<div class="empty">Fresh workspace. No verification run yet.</div>';
+  showInsight('action:reset'); loadStatus(); loadProposals(); poll(); };
 
+applyToggles(); renderSteps(); showInsight(STEPS[flow.current].insight);
 loadStatus(); loadPresets(); poll(); loadProposals();
 setInterval(poll, 1000); setInterval(loadProposals, 2500); setInterval(loadStatus, 15000);
 </script>

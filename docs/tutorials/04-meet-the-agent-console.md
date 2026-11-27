@@ -55,9 +55,11 @@ Open <http://127.0.0.1:8090>.
 | Area | What it shows |
 | --- | --- |
 | Header | `profile: ENTERPRISE` (or `LOCAL`), the endpoint host, the model id, the workspace `run-…`, `sandbox: isolated container` |
-| Developer request | A prompt box and preset buttons for the demo prompts |
+| Demo flow | The six Act 2 steps. The current step's buttons are highlighted, and a step gets a checkmark when it has happened. Keys: **←** / **→** |
+| Insight | What the audience is seeing and why it matters, with the key words highlighted. It changes with every action and result, contrasts with Act 1, and has a *Say* line for you. **i** hides the card, **p** hides the *Say* line |
+| Developer request | A prompt box and preset buttons for the tasks and the bad actions |
+| Presenter checks | Acceptance tests you own, run in the sandbox, with a FAILED/PASSED history |
 | Deterministic probes | Fixed requests through the real MCP and policy path, with no model involved |
-| Presenter checks | Acceptance tests you own, run in the sandbox |
 | Privacy boundary | The pinned model host, "credential: configured (hidden)", limits, leakage mode |
 | Tool trace | Every tool call with a green **ALLOW**, amber **ASK** or red **DENY** badge and the rule that decided it |
 | Proposed changes | Diffs waiting for your approval, each with a patch hash, workspace and expiry |
