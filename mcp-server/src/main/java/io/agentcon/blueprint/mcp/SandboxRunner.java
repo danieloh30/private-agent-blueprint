@@ -140,9 +140,9 @@ public class SandboxRunner {
         }
 
         String containerName = "blueprint-verify-" + run.id().replaceAll("[^a-zA-Z0-9-]", "") + "-" + counter.incrementAndGet();
-        List<String> command = containerCommand(containerName, scratch, m2, task);
         LOG.infof("Sandboxed verification %s in %s", taskName, containerName);
         try {
+            List<String> command = containerCommand(containerName, scratch, m2, task);
             Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
             TailReader tail = new TailReader(process.getInputStream(), config.sandbox().maxOutputChars());
             Thread reader = Thread.ofVirtual().start(tail);
@@ -175,7 +175,7 @@ public class SandboxRunner {
         }
     }
 
-    List<String> containerCommand(String containerName, Path scratch, Path m2, VerificationTasks.Task task) {
+    List<String> containerCommand(String containerName, Path scratch, Path m2, VerificationTasks.Task task) throws IOException {
         ServerConfig.Sandbox s = config.sandbox();
         List<String> cmd = new ArrayList<>(List.of(
                 engineBinary(), "run", "--rm", "--name", containerName,
@@ -189,11 +189,21 @@ public class SandboxRunner {
                 "--cpus=" + s.cpus(),
                 "--pids-limit=" + s.pidsLimit(),
                 "-e", "HOME=/tmp",
-                "-e", "MAVEN_OPTS=-Xmx768m",
+                "-e", "MAVEN_CONFIG=/tmp/.m2",
+                "-e", "MAVEN_OPTS=-Xmx768m -Duser.home=/tmp",
                 "-v", scratch + ":/work:rw",
                 "-v", m2 + ":/m2:ro",
                 "-w", "/work",
                 s.image()));
+        // With every capability dropped, even container root cannot write a
+        // Linux bind mount owned by the runner. Use the scratch directory owner.
+        if (System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("linux")) {
+            int imageIndex = cmd.size() - 1;
+            List<String> identity = new ArrayList<>(List.of("--user",
+                    Files.getAttribute(scratch, "unix:uid") + ":" + Files.getAttribute(scratch, "unix:gid")));
+            if (config.sandbox().engine().equals("podman")) identity.add("--userns=keep-id");
+            cmd.addAll(imageIndex, identity);
+        }
         cmd.addAll(VerificationTasks.command(task));
         return cmd;
     }

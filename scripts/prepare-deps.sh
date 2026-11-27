@@ -15,7 +15,15 @@ prep="$DEMO/prep"; rm -rf "$prep"; mkdir -p "$prep" "$DEMO/m2"
 cp -R "$ROOT/arcade" "$prep/arcade"; rm -rf "$prep/arcade/target"
 mkdir -p "$prep/arcade/src/test/java/acceptance"
 cp "$ROOT"/acceptance/src/test/java/acceptance/*.java "$prep/arcade/src/test/java/acceptance/"
-$SANDBOX_ENGINE run --rm --cap-drop=ALL --security-opt=no-new-privileges \
+# Native Linux bind mounts retain host ownership. Match it instead of granting
+# the container capabilities to override directory permissions.
+identity_args=(-e HOME=/tmp)
+if [[ "$(uname -s)" == Linux ]]; then
+  identity_args+=(--user "$(id -u):$(id -g)")
+  [[ "$SANDBOX_ENGINE" != podman ]] || identity_args+=(--userns=keep-id)
+fi
+$SANDBOX_ENGINE run --rm "${identity_args[@]}" --cap-drop=ALL --security-opt=no-new-privileges \
+  -e MAVEN_CONFIG=/tmp/.m2 -e MAVEN_OPTS=-Duser.home=/tmp \
   -v "$prep/arcade:/work" -v "$DEMO/m2:/m2" -w /work "$SANDBOX_IMAGE" \
   mvn -B -ntp -Dmaven.repo.local=/m2 -Dmaven.test.failure.ignore=true test \
   2>&1 | tee "$DEMO/logs/prepare-deps.log"
