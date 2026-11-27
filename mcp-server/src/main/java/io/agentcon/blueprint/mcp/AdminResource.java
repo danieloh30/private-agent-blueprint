@@ -2,6 +2,7 @@ package io.agentcon.blueprint.mcp;
 
 import io.agentcon.blueprint.guardrails.ApprovalStore;
 import io.agentcon.blueprint.guardrails.Decision;
+import io.agentcon.blueprint.guardrails.Hashing;
 import io.agentcon.blueprint.guardrails.LeakageInspector;
 import io.agentcon.blueprint.guardrails.PolicyEngine;
 import io.agentcon.blueprint.guardrails.PolicyViolation;
@@ -18,6 +19,8 @@ import io.vertx.core.json.JsonObject;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Presenter-only endpoints (guarded by the approver token in {@link AccessFilter}).
@@ -35,9 +38,14 @@ public class AdminResource {
     private final SandboxRunner sandbox;
     private final AuditLog audit;
     private final CodingTools tools;
+    private final ServerConfig config;
+    /** Per run: SHA-256 of each exact workspace diff that passed a presenter acceptance check. */
+    private final Map<String, Set<String>> verifiedDiffs = new ConcurrentHashMap<>();
 
     public AdminResource(WorkspaceManager workspaces, ApprovalStore approvals, PolicyEngine policy,
-                         LeakageInspector inspector, SandboxRunner sandbox, AuditLog audit, CodingTools tools) {
+                         LeakageInspector inspector, SandboxRunner sandbox, AuditLog audit, CodingTools tools,
+                         ServerConfig config) {
+        this.config = config;
         this.workspaces = workspaces;
         this.approvals = approvals;
         this.policy = policy;
@@ -129,6 +137,14 @@ public class AdminResource {
         SandboxRunner.Result r = sandbox.run(task, workspaces.current());
         audit.record("presenter", "verify:" + task, d, Map.of("status", r.status().name(), "tests", r.testsRun(),
                 "failures", r.failures() + r.errors(), "durationMs", r.durationMs()));
+        if (r.status() == SandboxRunner.Status.PASSED && task.startsWith("acceptance-")) {
+            try {
+                verifiedDiffs.computeIfAbsent(workspaces.current().id(), k -> ConcurrentHashMap.newKeySet())
+                        .add(Hashing.sha256(tools.workspaceDiff()));
+            } catch (java.io.IOException e) {
+                // Not recorded as verified: promotion will ask for another acceptance run.
+            }
+        }
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("task", r.task());
         m.put("status", r.status().name());
@@ -142,10 +158,81 @@ public class AdminResource {
         return Response.ok(new JsonObject(m).encode()).build();
     }
 
+    /**
+     * What a promotion would do now: the exact diff (and its hash, to bind the confirmation to it),
+     * whether that diff passed an acceptance check, and per file whether it would be copied.
+     */
+    @GET
+    @Path("/promote")
+    public Response promotePreview() throws Exception {
+        WorkspaceManager.Run run = workspaces.current();
+        String diff = tools.workspaceDiff();
+        String sha = Hashing.sha256(diff);
+        List<Promotion.Item> plan = Promotion.plan(run.workspace(), run.baseline(), promoteTarget(), tools.changedFiles());
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("enabled", config.promote().enabled());
+        m.put("workspaceId", run.id());
+        m.put("diffSha256", sha);
+        m.put("verified", !diff.isBlank() && verifiedDiffs.getOrDefault(run.id(), Set.of()).contains(sha));
+        m.put("files", plan.stream().map(i -> Map.of("path", i.path(), "status", i.status().name())).toList());
+        m.put("diff", inspector.redactForLog(diff));
+        return Response.ok(new JsonObject(m).encode()).build();
+    }
+
+    /**
+     * Copies the approved, verified changes into the developer's tree. Requires the diff hash the presenter
+     * reviewed, and an acceptance PASS on exactly that diff. Files the developer changed are never overwritten.
+     */
+    @POST
+    @Path("/promote")
+    public Response promote(String body) throws Exception {
+        WorkspaceManager.Run run = workspaces.current();
+        String presented = body == null || body.isBlank() ? null : new JsonObject(body).getString("diffSha256");
+        String diff = tools.workspaceDiff();
+        String sha = Hashing.sha256(diff);
+        Decision refused = null;
+        if (!config.promote().enabled()) {
+            refused = Decision.deny("promote.disabled", "Promotion from the console is turned off (blueprint.promote.enabled)");
+        } else if (diff.isBlank()) {
+            refused = Decision.deny("promote.nothing", "No approved changes in workspace " + run.id());
+        } else if (!sha.equals(presented)) {
+            refused = Decision.deny("promote.stale", "The workspace changed since you reviewed it; review the changes again");
+        } else if (!verifiedDiffs.getOrDefault(run.id(), Set.of()).contains(sha)) {
+            refused = Decision.deny("promote.needs-passing-acceptance",
+                    "Run an acceptance check on these exact changes first; only a PASSED result can be promoted");
+        }
+        if (refused != null) {
+            audit.record("presenter", "promote", refused, Map.of("workspace", run.id()));
+            return Response.status(409).entity(new JsonObject(Map.of("verdict", "DENY", "rule", refused.rule(),
+                    "reason", refused.reason())).encode()).build();
+        }
+        List<Promotion.Item> plan = Promotion.plan(run.workspace(), run.baseline(), promoteTarget(), tools.changedFiles());
+        List<String> copied = Promotion.apply(run.workspace(), promoteTarget(), plan);
+        List<String> conflicts = plan.stream().filter(i -> i.status() == Promotion.Status.CONFLICT).map(Promotion.Item::path).toList();
+        List<String> already = plan.stream().filter(i -> i.status() == Promotion.Status.ALREADY_PROMOTED).map(Promotion.Item::path).toList();
+        Decision done = Decision.allow("promote.copied", "Promoted " + copied.size() + " file(s) from " + run.id()
+                + (conflicts.isEmpty() ? "" : "; not overwritten (changed locally): " + conflicts));
+        audit.record("presenter", "promote", done, Map.of("workspace", run.id(), "diffSha256", sha,
+                "files", String.join(",", copied)));
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("verdict", "ALLOW");
+        m.put("rule", done.rule());
+        m.put("reason", done.reason());
+        m.put("promoted", copied);
+        m.put("alreadyPromoted", already);
+        m.put("conflicts", conflicts);
+        return Response.ok(new JsonObject(m).encode()).build();
+    }
+
+    private java.nio.file.Path promoteTarget() {
+        return config.promote().targetDir().orElse(config.fixtureDir()).toAbsolutePath().normalize();
+    }
+
     /** Creates a fresh disposable workspace. Touches only .demo/runs; never the fixture or the developer's tree. */
     @POST
     @Path("/workspace/reset")
     public String reset() {
+        verifiedDiffs.clear();
         approvals.clear();
         audit.clear();
         WorkspaceManager.Run run = workspaces.createRun();

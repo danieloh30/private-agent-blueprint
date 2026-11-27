@@ -144,6 +144,37 @@ public class AgentService {
         return r.json();
     }
 
+    // ------------------------------------------------------------------ promotion
+
+    /** What promoting would copy now, and whether those exact changes passed an acceptance check. */
+    public JsonObject promotePreview() {
+        AdminClient.Reply r = admin.get("/promote");
+        return r.status() == 200 ? r.json() : new JsonObject().put("error", r.body()).put("enabled", false);
+    }
+
+    /**
+     * Human promotion of the approved, verified changes into the developer's arcade/, bound to the diff hash
+     * the presenter reviewed. The MCP server enforces the rules; the agent process still writes no files.
+     */
+    public JsonObject promote(String diffSha256) {
+        AgentSession s = current();
+        AdminClient.Reply r = admin.post("/promote", new JsonObject().put("diffSha256", diffSha256));
+        JsonObject j = r.json();
+        if (r.status() != 200) {
+            s.emit(Kind.APPROVAL, "Promotion refused", j.getString("reason", r.body()), "DENY",
+                    j.getString("rule", "promote.refused"), 0);
+            return j.put("ok", false);
+        }
+        StringBuilder detail = new StringBuilder();
+        j.getJsonArray("promoted", new io.vertx.core.json.JsonArray()).forEach(f -> detail.append("copied  arcade/").append(f).append('\n'));
+        j.getJsonArray("alreadyPromoted", new io.vertx.core.json.JsonArray()).forEach(f -> detail.append("already arcade/").append(f).append('\n'));
+        j.getJsonArray("conflicts", new io.vertx.core.json.JsonArray()).forEach(f -> detail.append("KEPT    arcade/").append(f)
+                .append(" (changed locally, not overwritten)\n"));
+        s.emit(Kind.APPROVAL, "Human promoted " + j.getJsonArray("promoted").size() + " file(s) into arcade/",
+                detail.toString().strip(), "ALLOW", "promote.copied", 0);
+        return j.put("ok", true);
+    }
+
     // ------------------------------------------------------------------ verification
 
     /** Presenter-owned verification (acceptance checks live outside the agent's workspace). */

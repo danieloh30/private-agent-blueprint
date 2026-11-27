@@ -18,7 +18,10 @@ public interface ServerConfig {
     /** Directory holding disposable runs, audit logs and verification scratch copies. */
     Path stateDir();
 
-    /** Pristine coding-target fixture that each run copies. Never written to. */
+    /**
+     * Coding-target fixture that each run copies. No MCP tool writes to it; only the presenter's
+     * promote endpoint ({@link Promotion}) copies approved, verified files back into it.
+     */
     Path fixtureDir();
 
     /** Presenter-owned acceptance tests. Outside every agent-writable location. */
@@ -35,6 +38,8 @@ public interface ServerConfig {
     Approval approval();
 
     Sandbox sandbox();
+
+    Promote promote();
 
     interface Security {
         /** Bearer token the agent process presents on /mcp. Supplied via env, never model-visible. */
@@ -90,6 +95,15 @@ public interface ServerConfig {
 
         @WithDefault("5m")
         Duration approvalTtl();
+    }
+
+    interface Promote {
+        /** Lets the presenter promote verified changes from the console (admin endpoint, approver token). */
+        @WithDefault("true")
+        boolean enabled();
+
+        /** Where promoted files go. Defaults to the fixture directory (the developer's arcade/). */
+        Optional<Path> targetDir();
     }
 
     interface Sandbox {

@@ -25,7 +25,7 @@ window.DEMO_STEPS = [
   },
   {
     id: 'promote', n: 5, label: 'Promote and reload',
-    targets: [],
+    targets: ['#promote-btn'],
     insight: 'step:promote',
   },
   {
@@ -281,16 +281,36 @@ window.INSIGHTS = {
   // ---- Step 5 / promotion --------------------------------------------------------------------
   'step:promote': {
     title: 'You promote, not the agent',
-    headline: 'The agent never touches ==your working tree==. ==You promote== the approved files.',
+    headline: 'The agent never touches ==your working tree==. ==You promote== the approved, tested files.',
     points: [
-      '`scripts/promote-workspace.sh` shows the diff, asks, and copies ==only the changed files== into `arcade/`.',
+      '==Promote to arcade/== copies ==only the changed files==, and only if these ==exact changes passed acceptance==.',
       'It ==refuses to overwrite== files you changed since the run started, such as OpenCode\'s Quiz fix.',
-      'Reload the game page: the fix you ==reviewed and verified== is now live.',
+      'It\'s a presenter-only endpoint: the ==agent can\'t call it==. Reload the game page to see the fix.',
     ],
     say: 'Promotion is a deliberate human step, so this reload proves a change I reviewed.',
     vs: 'In Act 1, the change was already in my tree before I looked at it.',
     command: 'scripts/promote-workspace.sh',
     link: 'http://localhost:8080/rps?move=banana',
+  },
+
+  'action:promote': {
+    title: 'Promoted: now it\'s your code',
+    headline: '==Two human decisions==: approve the diff, then promote the ==proven== result.',
+    points: [
+      'Only files from ==approved== diffs whose exact content ==passed acceptance==.',
+      'Files you changed locally, like OpenCode\'s Quiz fix, were ==never overwritten==. Undo: `git checkout arcade/`.',
+      'Reload the game page: dev mode picks the change up.',
+    ],
+    say: 'I approved the change, my tests proved it, and only now does it reach my code. Let\'s reload.',
+    vs: 'In Act 1, the change was already in my tree before I looked at it.',
+  },
+  'action:promote-refused': {
+    title: 'Promotion refused',
+    headline: 'The server said !!no!!: only the ==exact changes that passed acceptance== can be promoted.',
+    points: [
+      'If the workspace changed after your review, review it again. If acceptance hasn\'t passed, run it first.',
+    ],
+    say: 'Even my own click is checked against the evidence.',
   },
 
   // ---- Run controls ---------------------------------------------------------------------------

@@ -90,6 +90,18 @@ public class AgentResource {
         return agent.verify(task).encode();
     }
 
+    @GET
+    @Path("/promote")
+    public String promotePreview() {
+        return agent.promotePreview().encode();
+    }
+
+    @POST
+    @Path("/promote")
+    public String promote(String body) {
+        return agent.promote(new JsonObject(body == null || body.isBlank() ? "{}" : body).getString("diffSha256", "")).encode();
+    }
+
     @POST
     @Path("/probes/{name}")
     public String probe(@PathParam("name") String name) {

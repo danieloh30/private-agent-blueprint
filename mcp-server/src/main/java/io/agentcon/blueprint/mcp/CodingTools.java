@@ -376,17 +376,30 @@ public class CodingTools {
 
     String workspaceDiff() throws IOException {
         WorkspaceManager.Run run = workspaces.current();
-        WorkspacePaths ws = new WorkspacePaths(run.workspace());
         StringBuilder sb = new StringBuilder();
+        for (String rel : changedFiles()) {
+            Path base = run.baseline().resolve(rel);
+            String now = Files.readString(run.workspace().resolve(rel), StandardCharsets.UTF_8);
+            String before = Files.exists(base) ? Files.readString(base, StandardCharsets.UTF_8) : "";
+            sb.append(unifiedDiff(rel, before, now));
+        }
+        return sb.toString();
+    }
+
+    /** Workspace files (that policy lets the agent read) whose content differs from the run's baseline. */
+    List<String> changedFiles() throws IOException {
+        WorkspaceManager.Run run = workspaces.current();
+        WorkspacePaths ws = new WorkspacePaths(run.workspace());
+        List<String> changed = new java.util.ArrayList<>();
         for (String rel : permittedFiles(ws, ws.root())) {
             Path base = run.baseline().resolve(rel);
             String now = Files.readString(ws.root().resolve(rel), StandardCharsets.UTF_8);
             String before = Files.exists(base) ? Files.readString(base, StandardCharsets.UTF_8) : "";
             if (!now.equals(before)) {
-                sb.append(unifiedDiff(rel, before, now));
+                changed.add(rel);
             }
         }
-        return sb.toString();
+        return changed;
     }
 
     private static void writeAtomically(Path file, String content) throws IOException {

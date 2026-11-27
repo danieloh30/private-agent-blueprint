@@ -16,7 +16,7 @@ flowchart LR
     PROPOSE --> HUMAN{You approve<br/>this exact diff}
     HUMAN -->|approval bound to<br/>patch + file hash| APPLY[apply_patch<br/>ALLOW, once]
     APPLY --> ACCEPT[[Acceptance tests<br/>sandbox, no network]]
-    ACCEPT --> PROMOTE([promote-workspace.sh<br/>reload the page])
+    ACCEPT --> PROMOTE([You promote<br/>reload the page])
     BAD([Secret read · curl · self-approval]) -.->|DENY / ASK| READ
 
     style ASK fill:#D4E6F1,stroke:#2E6B8A,color:#1F1F1F,stroke-width:2px
@@ -46,7 +46,7 @@ The insights below are the same ones the console shows.
 
 ## Steps
 
-### 1. Show the baseline failing
+### 1. Baseline: my tests fail
 
 Click **Acceptance: RPS**. After about 16 seconds: **`FAILED: 9 tests, 5 failures`**. These tests live in
 [`acceptance/`](../../acceptance), outside anything the agent can write.
@@ -89,7 +89,9 @@ Two diffs wait under **Proposed changes**. Nothing has been written yet.
 >   and the MCP server never talks to the model.
 > - *vs Act 1:* OpenCode edited your working tree directly, and you reviewed afterwards with `git diff`.
 
-### 3. Try three bad actions while the diffs are pending
+### 3. Try bad actions
+
+Run these while the two diffs are still pending.
 
 | Preset | What happens | Insight |
 | --- | --- | --- |
@@ -104,11 +106,12 @@ DeepSeek refuses the `curl` part on its own and runs only `unit-tests`; the prob
 > secret**, or **follows an injected instruction**. The probes are **deterministic** (no model, same MCP and policy
 > path), so they prove **enforcement** even when the model behaves perfectly.
 
-### 4. Approve, apply and verify
+### 4. Approve and verify
 
 1. Read the RPS diff: one line becomes `throw new WebApplicationException(Response.status(400)…)`. Each proposal
    shows what the approval binds to: patch hash, workspace, single use and expiry.
-2. Click **Approve and apply to workspace** on both proposals. This applies each diff to the agent's disposable copy only; your arcade on :8080 changes when you promote in step 5. The trace shows `approval.granted`, then
+2. Click **Approve and apply to workspace** on both proposals. This applies each diff to the agent's disposable
+   copy only; your arcade on :8080 changes when you promote in step 5. The trace shows `approval.granted`, then
    `apply_patch (after human approval)` with **ALLOW `write.approved`**.
 3. Click **Acceptance: RPS**: **`PASSED: 9 tests, 0 failures`**. The verification history shows FAILED, then PASSED.
 
@@ -117,26 +120,35 @@ DeepSeek refuses the `curl` part on its own and runs only `unit-tests`; the prob
 > **and** valid moves still work. The agent couldn't make them pass by weakening them. This is **independent
 > acceptance**, not the agent's word.
 
-### 5. Promote the change and reload the game
+### 5. Promote and reload
 
-The agent changed only its disposable workspace. You decide what reaches your working tree:
+The agent changed only its disposable workspace. You decide what reaches your working tree. The **Promote to your
+arcade** panel lists each changed file:
 
-```bash
-scripts/promote-workspace.sh
-```
+| Label | Meaning |
+| --- | --- |
+| **will copy** | Approved, and unchanged in your `arcade/` since the run started |
+| **already in arcade/** | Promoted before; skipped |
+| **changed locally, kept** | You changed it since the run started (for example OpenCode's Quiz fix); never overwritten |
 
-It prints the approved diff, asks for confirmation, and copies only the changed files into `arcade/`. It never
-overwrites a file you changed since the run started, such as OpenCode's Quiz fix. Then reload
-<http://localhost:8080/rps?move=banana>: **HTTP 400** with the agent's message naming ROCK, PAPER and SCISSORS (the
-exact wording varies between runs). `?move=rock` still plays a round, and the Quiz fix from Act 1 is still there.
+The button stays disabled until these **exact changes passed an acceptance check**. Click **Promote N file(s) to
+arcade/**, confirm, and reload <http://localhost:8080/rps?move=banana>: **HTTP 400** with the agent's message naming
+ROCK, PAPER and SCISSORS (the exact wording varies between runs). `?move=rock` still plays a round, and the Quiz fix
+from Act 1 is still there. Undo with `git checkout arcade/`.
 
-The console can't see your terminal, so click **Mark as promoted** on the insight card to tick off this step.
+The MCP server enforces this, not the page. The promote endpoint is presenter-only (approver token, not an MCP tool,
+so the agent can't call it). It refuses unless the request carries the hash of the diff you reviewed and that exact
+diff passed acceptance, and it records the promotion in the audit log.
 
-> **Insight: you promote, not the agent.** The agent never touches **your working tree**. Promotion is a
-> deliberate human step, so the page reload proves a change you **reviewed and verified**. *vs Act 1:* the change
-> was already in your tree before you looked at it.
+Prefer a terminal? `scripts/promote-workspace.sh` does the same copy with the same rules after asking; then click
+**Mark as promoted** on the insight card, because the console can't see your terminal. To turn the console button
+off, start the stack with `BLUEPRINT_PROMOTE_ENABLED=false`.
 
-### 6. Second task: Word Scramble
+> **Insight: you promote, not the agent.** The agent never touches **your working tree**. There are **two human
+> decisions**: approve the diff, then promote the **proven** result, so the page reload shows a change you
+> **reviewed and verified**. *vs Act 1:* the change was already in your tree before you looked at it.
+
+### 6. Second task: Scramble
 
 Click **Fresh workspace**, then the preset **Backup task: Scramble case**:
 
@@ -144,8 +156,8 @@ Click **Fresh workspace**, then the preset **Backup task: Scramble case**:
 In Word Scramble, a correct guess typed in a different case (SERVERLESS vs serverless) is rejected. Find the code, explain it, and propose a minimal fix.
 ```
 
-Approve the `equalsIgnoreCase` diff (and the test update), click **Acceptance: Scramble** (`PASSED: 5 tests`), run
-`scripts/promote-workspace.sh` again, and reload
+Approve the `equalsIgnoreCase` diff (and the test update), click **Acceptance: Scramble** (`PASSED: 5 tests`), click
+**Promote** again, and reload
 <http://localhost:8080/scramble?word=serverless&guess=SERVERLESS>: **🎉 Correct!**
 
 > **Insight: a fresh disposable workspace per task.** Nothing carries over, and old approvals are **bound to the

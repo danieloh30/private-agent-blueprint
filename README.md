@@ -30,7 +30,7 @@ flowchart LR
     TOOLS -->|named tasks only| SANDBOX[[Restricted container<br/>network=none, read-only,<br/>limits, no host creds]]
     SANDBOX --> SCRATCH[(scratch copy +<br/>acceptance tests)]
     FIXTURE[(arcade/<br/>your working tree)] -.->|copied per run| WS
-    WS -.->|"promote-workspace.sh<br/>after approval"| FIXTURE
+    WS -.->|"you promote, after<br/>acceptance passes"| FIXTURE
 
     style DEV fill:#D4E6F1,stroke:#2E6B8A,color:#1F1F1F,stroke-width:2px
     style AGENT fill:#F5F5F0,stroke:#8B8070,color:#1F1F1F,stroke-width:2px
@@ -140,7 +140,8 @@ Two acts on the same buggy arcade (`cd arcade && ../mvnw quarkus:dev`, then <htt
 
 1. **OpenCode** fixes a game in place with the private model; reload the page to see it.
 2. **The Java agent** fixes the others: it proposes diffs, you approve them in the console, acceptance tests pass in
-   the sandbox, and `scripts/promote-workspace.sh` copies the approved change into `arcade/` so the page reload shows it.
+   the sandbox, and **Promote** in the console (or `scripts/promote-workspace.sh`) copies the approved, verified change
+   into `arcade/` so the page reload shows it.
 
 Step by step: the [tutorial](docs/tutorials/index.md) (published at
 <https://danieloh30.github.io/private-agent-blueprint/>). Timed stage script with exact prompts:

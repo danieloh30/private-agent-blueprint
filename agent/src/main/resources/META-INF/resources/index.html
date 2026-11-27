@@ -123,6 +123,10 @@
   #verify-box .big { font-size: 22px; font-weight: 700; }
   #verify-box pre { max-height: 180px; overflow: auto; }
   .ok { color: var(--allow); } .bad-t { color: var(--deny); }
+  .promote-files { list-style: none; margin: 6px 0; padding: 0; font-size: 15px; }
+  .promote-files li { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; }
+  .promote-files code { font-size: 13px; }
+  button.promote { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 650; }
   #history { list-style: none; margin: 8px 0 0; padding: 0; font-size: 15px; }
   #history li { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; border-top: 1px solid var(--code); }
   #history .t { color: var(--muted); font-size: 13px; margin-left: auto; }
@@ -213,6 +217,8 @@
     <h2>Verification</h2>
     <div id="verify-box"><div class="empty">No verification run yet. Start with <b>Acceptance: RPS</b> to show the baseline failing.</div></div>
     <ul id="history"></ul>
+    <h2 style="margin-top:16px">Promote to your arcade</h2>
+    <div id="promote"><div class="empty">Nothing to promote yet. Approve a diff, then pass acceptance on it.</div></div>
     <h2 style="margin-top:16px">Proposed changes</h2>
     <div id="proposals"><div class="empty">No proposals yet. The agent can only propose; you approve each exact diff here.</div></div>
   </section>
@@ -281,6 +287,7 @@ function stepFor(key) {
   if (kind === 'step') return null;
   if (kind === 'probe') return 'bad';
   if (kind === 'preset') return { primary: 'ask', followup: 'ask', backup: 'scramble' }[name] || 'bad';
+  if (kind === 'action' && name.startsWith('promote')) return 'promote';
   if (kind === 'action') return name === 'reset' ? (flow.done.has('approve') ? 'scramble' : null) : 'approve';
   if (kind === 'verify') {
     if (name.includes('scramble')) return 'scramble';
@@ -335,7 +342,7 @@ function insightHtml(ins, step) {
     + `<h2>${esc(ins.title)}</h2>`
     + `<p class="headline">${md(ins.headline)}</p>`
     + (ins.points && ins.points.length ? `<ul>${ins.points.map(p => `<li>${md(p)}</li>`).join('')}</ul>` : '')
-    + (ins.command ? `<div class="row" style="margin-top:6px"><span class="cmd"><code>${esc(ins.command)}</code><button class="tool" id="copy-cmd">Copy</button></span>`
+    + (ins.command ? `<div class="row" style="margin-top:6px"><span class="note">Or in a terminal:</span><span class="cmd"><code>${esc(ins.command)}</code><button class="tool" id="copy-cmd">Copy</button></span>`
         + (ins.link ? `<a href="${esc(ins.link)}" target="_blank">${esc(ins.link)}</a>` : '')
         + `<button class="tool" id="mark-promoted">Mark as promoted</button></div>` : '')
     + `</div><div class="extra">`
@@ -463,6 +470,67 @@ function emptyTrace() {
 }
 
 // ---------- Proposals ----------
+// ---------- Promotion ----------
+const GAME = [['scramble', 'http://localhost:8080/scramble?word=serverless&guess=SERVERLESS'],
+              ['rps', 'http://localhost:8080/rps?move=banana'], ['quiz', 'http://localhost:8080/quiz?answer=CHEAT']];
+const PROMOTE_LABEL = { PROMOTE: ['ASK', 'will copy'], ALREADY_PROMOTED: ['ALLOW', 'already in arcade/'], CONFLICT: ['DENY', 'changed locally, kept'] };
+let promoteView = '', promoteResult = '';
+function gameLink(files) {
+  const hit = GAME.find(([k]) => files.some(f => f.path.includes('/' + k + '/') || f.path.toLowerCase().includes(k)));
+  return hit ? hit[1] : 'http://localhost:8080/';
+}
+async function loadPromote() {
+  const p = await api('/api/promote');
+  const key = JSON.stringify(p) + promoteResult;
+  if (key === promoteView) return;
+  promoteView = key;
+  const box = $('#promote');
+  if (!p || p.enabled === false) {
+    box.innerHTML = '<div class="empty">Promotion from the console is turned off. Use <code>scripts/promote-workspace.sh</code>.</div>';
+    return;
+  }
+  const files = p.files || [];
+  if (files.length === 0) {
+    box.innerHTML = '<div class="empty">Nothing to promote yet. Approve a diff, then pass acceptance on it.</div>' + promoteResult;
+    spotlight(); return;
+  }
+  const todo = files.filter(f => f.status === 'PROMOTE');
+  const list = '<ul class="promote-files">' + files.map(f => {
+    const [v, label] = PROMOTE_LABEL[f.status] || ['', f.status];
+    return `<li><span class="badge ${v}">${esc(label)}</span><code>arcade/${esc(f.path)}</code></li>`;
+  }).join('') + '</ul>';
+  let action;
+  if (todo.length === 0) {
+    action = `<div class="note">Everything approved is already in your arcade. <a href="${esc(gameLink(files))}" target="_blank">Reload the game page</a>.</div>`;
+  } else if (!p.verified) {
+    action = '<div class="note">Run <b>Acceptance</b> on these exact changes first: only a PASSED result can be promoted.</div>'
+      + `<button class="promote" id="promote-btn" disabled>Promote ${todo.length} file(s) to arcade/</button>`;
+  } else {
+    action = `<div class="note">These exact changes passed acceptance. Promoting copies them into your arcade; dev mode reloads them.</div>`
+      + `<button class="promote" id="promote-btn" data-sha="${esc(p.diffSha256)}">Promote ${todo.length} file(s) to arcade/</button>`;
+  }
+  box.innerHTML = list + action + promoteResult;
+  const btn = $('#promote-btn');
+  if (btn && !btn.disabled) btn.onclick = async () => {
+    const names = todo.map(f => '  arcade/' + f.path).join('\n');
+    if (!confirm('Copy these approved, tested files into your arcade?\n\n' + names
+        + '\n\nFiles you changed locally are never overwritten. Undo: git checkout arcade/')) return;
+    btn.disabled = true;
+    const r = await api('/api/promote', { method: 'POST', body: JSON.stringify({ diffSha256: btn.dataset.sha }) });
+    const link = gameLink(files);
+    if (r && r.ok) {
+      promoteResult = `<div class="note ok" style="margin-top:6px">Promoted ${(r.promoted || []).length} file(s). `
+        + `<a href="${esc(link)}" target="_blank">Reload ${esc(link.replace('http://localhost:8080', ''))}</a></div>`;
+      markDone('promote'); showInsight('action:promote');
+    } else {
+      promoteResult = `<div class="note bad-t" style="margin-top:6px">Refused: ${esc((r && r.reason) || 'unknown error')}</div>`;
+      showInsight('action:promote-refused');
+    }
+    promoteView = ''; loadPromote(); poll();
+  };
+  spotlight();
+}
+
 async function loadProposals() {
   const ps = await api('/api/proposals');
   if (Array.isArray(ps)) appliedInSession = ps.some(p => p.state === 'APPLIED');
@@ -515,6 +583,7 @@ $$('[data-verify]').forEach(b => b.onclick = async () => {
   tick(); const timer = setInterval(tick, 1000);
   setTimeout(poll, 300);
   const r = await api('/api/verify/' + task, { method: 'POST' });
+  promoteView = ''; loadPromote();
   clearInterval(timer); $$('[data-verify]').forEach(x => x.disabled = false);
   await poll();
   const key = afterFix && r && r.status === 'FAILED' ? 'verify:after-' + short + ':FAILED' : 'verify:' + task + ':' + (r && r.status);
@@ -523,11 +592,13 @@ $$('[data-verify]').forEach(b => b.onclick = async () => {
 $('#reset').onclick = async () => {
   await api('/api/reset', { method: 'POST' });
   $('#verify-box').innerHTML = '<div class="empty">Fresh workspace. No verification run yet.</div>';
-  showInsight('action:reset'); loadStatus(); loadProposals(); poll(); };
+  promoteResult = ''; promoteView = '';
+  showInsight('action:reset'); loadStatus(); loadProposals(); loadPromote(); poll(); };
 
 applyToggles(); renderSteps(); showInsight(STEPS[flow.current].insight);
 loadStatus(); loadPresets(); poll(); loadProposals();
-setInterval(poll, 1000); setInterval(loadProposals, 2500); setInterval(loadStatus, 15000);
+setInterval(poll, 1000); setInterval(loadProposals, 2500); setInterval(loadPromote, 2500); setInterval(loadStatus, 15000);
+loadPromote();
 </script>
 </body>
 </html>

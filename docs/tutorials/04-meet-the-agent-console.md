@@ -62,6 +62,7 @@ Open <http://127.0.0.1:8090>.
 | Deterministic probes | Fixed requests through the real MCP and policy path, with no model involved |
 | Privacy boundary | The pinned model host, "credential: configured (hidden)", limits, leakage mode |
 | Tool trace | Every tool call with a green **ALLOW**, amber **ASK** or red **DENY** badge and the rule that decided it |
+| Promote to your arcade | The approved files and whether each would be copied into `arcade/`. The button works only after acceptance passed on these exact changes |
 | Proposed changes | Diffs waiting for your approval, each with a patch hash, workspace and expiry |
 
 The seven tools are `list_files`, `search_text`, `read_file`, `show_diff`, `propose_patch`, `apply_patch` and

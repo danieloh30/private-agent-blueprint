@@ -137,12 +137,11 @@ and policy path.
    `approval.granted`) then `apply_patch (after human approval)` **ALLOW `write.approved`**; states become APPLIED.
 3. Click **Acceptance: RPS**. **Observe** (about 15 s): **`PASSED: 9 tests, 0 failures`**.
 4. Optional: **Unit tests**: `PASSED: 18 tests` (the agent updated the test that encoded the bug).
-5. Promote the approved change into the working tree and reload the game:
-   ```bash
-   scripts/promote-workspace.sh
-   ```
-   It shows the diff and asks before copying. Reload `http://localhost:8080/rps?move=banana`: **HTTP 400** with a
-   message naming the valid moves; the Quiz fix from Act 1 is untouched.
+5. Promote the approved change into the working tree and reload the game: in **Promote to your arcade**, click
+   **Promote 2 file(s) to arcade/** and confirm (it's enabled only after acceptance PASSED on these exact changes).
+   Reload `http://localhost:8080/rps?move=banana`: **HTTP 400** with a message naming the valid moves; the Quiz fix
+   from Act 1 is untouched. Say: *two human decisions: I approved the diff, my tests proved it, and only now does it
+   reach my code.* Terminal alternative: `scripts/promote-workspace.sh`.
 
 If the agent proposed only the resource fix, send the preset **Follow-up: update the test**. This also shows
 conversation memory.
