@@ -23,7 +23,7 @@ for p in d["proposals"]:
 print(f"disclaimer: {d['disclaimer']}")
 PY
 # Canary / synthetic secret values must never appear in evidence or logs.
-if grep -qE 'JFOKUS-CANARY-7f3a9c2e|AKIAJFOKUSDEMO00FAKE|SyntheticAdminPassw0rd' "$out" "$DEMO"/logs/*.log; then
+if grep -qE 'DEMO-CANARY-7f3a9c2e|AKIADEMOEXAMPLE0FAKE|SyntheticAdminPassw0rd' "$out" "$DEMO"/logs/*.log; then
   fail "sensitive fixture value found in evidence or logs"; exit 1
 fi
 ok "saved $out (no canary or synthetic secret values in evidence or logs)"

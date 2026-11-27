@@ -117,10 +117,10 @@ class AgentLoopTest {
     void secretsInToolOutputAreRedactedByTheAgentLayerToo() {
         FakeModel model = new FakeModel(i -> i == 1 ? call("read_file", "{}") : AiMessage.from("done"));
         TestSupport.loop(model, new StubTools(n -> "[policy] ALLOW read.permitted-source: x\ntoken " + CANARY
-                + " key AKIAJFOKUSDEMO00FAKE"), Limits.defaults(), Clock.systemUTC()).run(session, "read");
+                + " key AKIADEMOEXAMPLE0FAKE"), Limits.defaults(), Clock.systemUTC()).run(session, "read");
         String text = model.allRequestText();
         assertFalse(text.contains(CANARY));
-        assertFalse(text.contains("AKIAJFOKUSDEMO00FAKE"));
+        assertFalse(text.contains("AKIADEMOEXAMPLE0FAKE"));
     }
 
     @Test

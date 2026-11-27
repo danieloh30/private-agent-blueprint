@@ -31,7 +31,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AgentEndToEndIT {
 
-    static final String CANARY = "JFOKUS-CANARY-7f3a9c2e-DO-NOT-SHARE";
+    static final String CANARY = "DEMO-CANARY-7f3a9c2e-DO-NOT-SHARE";
     static final int MCP = 18091;
     static final String SCRIPTED = "http://127.0.0.1:18090";
     static final String CAPTURED = "http://127.0.0.1:18092";
@@ -146,7 +146,7 @@ class AgentEndToEndIT {
         String all = String.join("\n", modelRequests);
         assertTrue(all.contains("On-call rotation"), "non-sensitive tool content was delivered");
         assertFalse(all.contains(CANARY));
-        assertFalse(all.contains("AKIAJFOKUSDEMO00FAKE"));
+        assertFalse(all.contains("AKIADEMOEXAMPLE0FAKE"));
         assertFalse(all.contains(stack.agentToken));
         assertFalse(all.contains(stack.approverToken));
     }
@@ -167,7 +167,7 @@ class AgentEndToEndIT {
     void logsAndEvidenceAreRedacted() throws Exception {
         String evidence = stack.get(SCRIPTED + "/api/evidence") + stack.get(CAPTURED + "/api/evidence");
         String logs = stack.logs();
-        for (String secret : List.of(CANARY, "AKIAJFOKUSDEMO00FAKE", "SyntheticAdminPassw0rd", stack.agentToken, stack.approverToken)) {
+        for (String secret : List.of(CANARY, "AKIADEMOEXAMPLE0FAKE", "SyntheticAdminPassw0rd", stack.agentToken, stack.approverToken)) {
             assertFalse(evidence.contains(secret), "evidence leaks " + secret.substring(0, 6));
             assertFalse(logs.contains(secret), "logs leak " + secret.substring(0, 6));
         }

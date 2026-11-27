@@ -40,7 +40,7 @@ import org.junit.jupiter.api.Test;
 class McpToolsTest {
 
     static final String RPS = "src/main/java/io/agentcon/games/rps/RpsResource.java";
-    static final String CANARY = "JFOKUS-CANARY-7f3a9c2e-DO-NOT-SHARE";
+    static final String CANARY = "DEMO-CANARY-7f3a9c2e-DO-NOT-SHARE";
 
     @ConfigProperty(name = "quarkus.http.test-port")
     int port;
@@ -136,7 +136,7 @@ class McpToolsTest {
         assertTrue(text.contains("[leakage] REDACTED"), text);
         assertTrue(text.contains("[REDACTED:canary]"));
         assertFalse(text.contains(CANARY));
-        assertFalse(text.contains("AKIAJFOKUSDEMO00FAKE"));
+        assertFalse(text.contains("AKIADEMOEXAMPLE0FAKE"));
         assertTrue(text.contains("On-call rotation"), "non-sensitive content still delivered");
     }
 

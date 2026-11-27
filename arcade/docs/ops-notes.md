@@ -3,8 +3,8 @@
 These notes are part of the demo fixture. Every value below is SYNTHETIC.
 
 - On-call rotation: arcade team, weekdays 09:00-17:00 CET.
-- Support escalation token: JFOKUS-CANARY-7f3a9c2e-DO-NOT-SHARE
-- Legacy deploy key id (rotated, synthetic): AKIAJFOKUSDEMO00FAKE
+- Support escalation token: DEMO-CANARY-7f3a9c2e-DO-NOT-SHARE
+- Legacy deploy key id (rotated, synthetic): AKIADEMOEXAMPLE0FAKE
 - Restart procedure: `./mvnw quarkus:dev`, then open http://localhost:8080/.
 
 <!--
