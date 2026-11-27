@@ -84,6 +84,8 @@
      Buttons that already carry a color (approve, promote, send) keep it, because their own rules are more
      specific, and get the same amber glow. */
   .spot { background: #ffd33d; border: 2px solid #b07d00; color: #1b1f24; font-weight: 700; animation: glow-amber 1.6s ease-in-out infinite; }
+  .used { border-color: var(--allow); background: var(--allow-bg); color: #0f5323; }
+  .used::before { content: "✓ "; font-weight: 800; color: var(--allow); }
   @keyframes glow-amber { 0%, 100% { box-shadow: 0 0 0 2px rgba(255, 196, 0, .55); } 50% { box-shadow: 0 0 0 7px rgba(255, 196, 0, .35); } }
   @keyframes glow-blue { 0%, 100% { box-shadow: 0 0 0 2px rgba(11, 92, 173, .35); } 50% { box-shadow: 0 0 0 7px rgba(11, 92, 173, .22); } }
   @media (prefers-reduced-motion: reduce) { .spot, #next.ready { animation: none; } }
@@ -249,7 +251,7 @@ const STEPS = window.DEMO_STEPS, INSIGHTS = window.INSIGHTS;
 
 function store(k, v) { try { localStorage.setItem('console.' + k, JSON.stringify(v)); } catch (e) {} }
 function load(k, d) { try { const v = localStorage.getItem('console.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }
-const flow = { current: load('step', 0), done: new Set(load('done', [])), insight: load('insight', true), cue: load('cue', true) };
+const flow = { current: load('step', 0), done: new Set(load('done', [])), used: new Set(load('used', [])), insight: load('insight', true), cue: load('cue', true) };
 
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function md(s) {
@@ -287,9 +289,22 @@ function renderSteps() {
   $('#next').classList.toggle('ready', !!cur && flow.done.has(cur.id) && flow.current < STEPS.length - 1);
   spotlight();
 }
+// Amber marks what is still to do in the current step; buttons already used in this step get a green check.
 function spotlight() {
-  $$('.spot').forEach(e => e.classList.remove('spot'));
-  (STEPS[flow.current]?.targets || []).forEach(sel => $$(sel).forEach(e => e.classList.add('spot')));
+  $$('.spot, .used').forEach(e => e.classList.remove('spot', 'used'));
+  const step = STEPS[flow.current]; if (!step) return;
+  step.targets.forEach(sel => {
+    const cls = flow.used.has(step.id + '|' + sel) ? 'used' : 'spot';
+    $$(sel).forEach(e => e.classList.add(cls));
+  });
+}
+function markUsed(sel) {
+  const key = STEPS[flow.current].id + '|' + sel;
+  if (flow.used.has(key)) return;
+  flow.used.add(key); store('used', [...flow.used]); spotlight();
+}
+function clearProgress() {
+  flow.done.clear(); flow.used.clear(); store('done', []); store('used', []);
 }
 function setStep(i) {
   flow.current = Math.max(0, Math.min(STEPS.length - 1, i)); store('step', flow.current);
@@ -391,7 +406,7 @@ async function loadStatus() {
   if (s.instance && load('instance', null) !== s.instance) {
     store('instance', s.instance);
     if (flow.done.size || flow.current !== 0) {
-      flow.done.clear(); store('done', []); goStep(0);
+      clearProgress(); goStep(0);
       toast('<b>New stack started:</b> the demo flow is back at step 1.');
     }
   }
@@ -419,7 +434,7 @@ async function loadPresets() {
   $('#presets-bad').innerHTML = presets.filter(p => BAD.has(p.id)).map(btn).join('');
   $$('[data-preset]').forEach(b => b.onclick = () => {
     const p = presets.find(x => x.id === b.dataset.preset);
-    $('#prompt').value = p.text; $('#prompt').dataset.preset = p.id;
+    $('#prompt').value = p.text; $('#prompt').dataset.fromPreset = p.id;
     showInsight('preset:' + p.id);
   });
   spotlight();
@@ -589,15 +604,17 @@ async function loadProposals() {
 $('#send').onclick = async () => {
   const text = $('#prompt').value.trim(); if (!text) return;
   $('#send').disabled = true;
-  const preset = $('#prompt').dataset.preset;
+  const preset = $('#prompt').dataset.fromPreset;
   const p = presets.find(x => x.id === preset);
   if (p && p.text === text && BAD.has(preset)) markDone('bad');
+  if (p && p.text === text) markUsed(`[data-preset="${preset}"]`);
+  markUsed('#send');
   await api('/api/ask', { method: 'POST', body: JSON.stringify({ text }) });
   poll();
 };
-$('#prompt').addEventListener('input', () => { delete $('#prompt').dataset.preset; });
+$('#prompt').addEventListener('input', () => { delete $('#prompt').dataset.fromPreset; });
 $$('[data-probe]').forEach(b => b.onclick = async () => {
-  b.disabled = true; showInsight('probe:' + b.dataset.probe);
+  b.disabled = true; showInsight('probe:' + b.dataset.probe); markUsed(`[data-probe="${b.dataset.probe}"]`);
   await api('/api/probes/' + b.dataset.probe, { method: 'POST' }); b.disabled = false; poll(); loadProposals(); });
 $$('[data-verify]').forEach(b => b.onclick = async () => {
   const task = b.dataset.verify, t0 = Date.now();
@@ -605,6 +622,7 @@ $$('[data-verify]').forEach(b => b.onclick = async () => {
   const short = task.replace('acceptance-', ''), afterFix = appliedInSession && task.startsWith('acceptance-');
   $$('[data-verify]').forEach(x => x.disabled = true);
   showInsight(afterFix ? 'verify:after-' + short : 'verify:' + task);
+  markUsed(`[data-verify="${task}"]`);
   const tick = () => { $('#verify-box').innerHTML = `<div class="big busy">Running ${esc(task)} in the sandbox… ${Math.round((Date.now() - t0) / 1000)} s</div>`
     + '<div class="note">Isolated container: no network, read-only filesystem, CPU, memory and time limits.</div>'; };
   tick(); const timer = setInterval(tick, 1000);
@@ -648,11 +666,11 @@ $('#reset').onclick = async () => {
   const r = await newWorkspace($('#reset'), 'Creating fresh workspace…'); if (!r) return;
   toast(`<b>✓ Fresh workspace ready:</b> ${r.line} Proposals, approvals and verification history are cleared.`
     + '<br>Your demo progress is kept. To reset everything, use <b>Start over</b>.');
-  showInsight('action:reset');
+  showInsight('action:reset'); markUsed('#reset');
 };
 $('#restart-flow').onclick = async () => {
   const r = await newWorkspace($('#restart-flow'), 'Starting over…'); if (!r) return;
-  flow.done.clear(); store('done', []); goStep(0);
+  clearProgress(); goStep(0);
   toast(`<b>✓ Started over:</b> fresh workspace ${r.line}`
     + '<br>All step checkmarks, proposals, approvals and verification history are cleared. Begin with step 1.'
     + '<br><span class="note">Fixes you promoted stay in <code>arcade/</code>; to bring the bugs back, run <code>git checkout arcade/</code>.</span>');
