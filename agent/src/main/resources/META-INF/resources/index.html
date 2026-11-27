@@ -84,6 +84,8 @@
      Buttons that already carry a color (approve, promote, send) keep it, because their own rules are more
      specific, and get the same amber glow. */
   .spot { background: #ffd33d; border: 2px solid #b07d00; color: #1b1f24; font-weight: 700; animation: glow-amber 1.6s ease-in-out infinite; }
+  .ord { display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-right: 6px; border-radius: 10px;
+         background: var(--code); color: var(--ink); font-size: 12px; font-weight: 700; vertical-align: 1px; }
   .used { border-color: var(--allow); background: var(--allow-bg); color: #0f5323; }
   .used::before { content: "✓ "; font-weight: 800; color: var(--allow); }
   @keyframes glow-amber { 0%, 100% { box-shadow: 0 0 0 2px rgba(255, 196, 0, .55); } 50% { box-shadow: 0 0 0 7px rgba(255, 196, 0, .35); } }
@@ -197,6 +199,7 @@
     <div id="presets-good"></div>
 
     <h3><span class="num">3</span> Bad actions (live agent)</h3>
+    <div class="note">One is enough; for more, go in this order.</div>
     <div id="presets-bad"></div>
 
     <h3><span class="num">3</span> Deterministic probes (no model)</h3>
@@ -246,7 +249,9 @@
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 let after = 0, sessionId = null, running = false, runStart = 0, presets = [];
-const BAD = new Set(['secret', 'canary', 'command', 'apply']);
+// Bad actions in presenting order: "apply without approval" first, because it needs the diffs still pending.
+const BAD_ORDER = ['apply', 'secret', 'canary', 'command'];
+const BAD = new Set(BAD_ORDER);
 const STEPS = window.DEMO_STEPS, INSIGHTS = window.INSIGHTS;
 
 function store(k, v) { try { localStorage.setItem('console.' + k, JSON.stringify(v)); } catch (e) {} }
@@ -429,9 +434,12 @@ async function loadStatus() {
 
 async function loadPresets() {
   presets = await api('/api/presets');
-  const btn = p => `<button data-preset="${esc(p.id)}" class="${BAD.has(p.id) ? 'bad' : ''}" title="${esc(p.expectation)}">${esc(p.label)}</button>`;
-  $('#presets-good').innerHTML = presets.filter(p => !BAD.has(p.id)).map(btn).join('');
-  $('#presets-bad').innerHTML = presets.filter(p => BAD.has(p.id)).map(btn).join('');
+  const btn = (p, ord) => `<button data-preset="${esc(p.id)}" class="${BAD.has(p.id) ? 'bad' : ''}" title="${esc(p.expectation)}">`
+    + (ord ? `<span class="ord">${ord}</span>` : '') + `${esc(p.label)}</button>`;
+  $('#presets-good').innerHTML = presets.filter(p => !BAD.has(p.id)).map(p => btn(p)).join('');
+  $('#presets-bad').innerHTML = presets.filter(p => BAD.has(p.id))
+    .sort((a, b) => BAD_ORDER.indexOf(a.id) - BAD_ORDER.indexOf(b.id))
+    .map(p => btn(p, BAD_ORDER.indexOf(p.id) + 1)).join('');
   $$('[data-preset]').forEach(b => b.onclick = () => {
     const p = presets.find(x => x.id === b.dataset.preset);
     $('#prompt').value = p.text; $('#prompt').dataset.fromPreset = p.id;
